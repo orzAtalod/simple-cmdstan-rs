@@ -35,7 +35,7 @@ mod json_interface {
                 DataEntry::Array(arr) => {
                     res.push('[');
                     for (i, item) in arr.iter().enumerate() {
-                        if i > 0 {
+                        if i != 0 {
                             res.push(',');
                             res.push(' ');
                         }
@@ -46,7 +46,7 @@ mod json_interface {
                 DataEntry::Tuple(tup) => {
                     res.push('{');
                     for (i, item) in tup.iter().enumerate() {
-                        if i > 0 {
+                        if i != 0 {
                             res.push(',');
                             res.push(' ');
                         }
@@ -63,7 +63,7 @@ mod json_interface {
         fn write_as_stan_data(&self) -> String {
             let mut result = "{\n".to_string();
             for (i, (name, entry)) in self.datas.iter().enumerate() {
-                if i > 0 {
+                if i != 0 {
                     result.push(',');
                     result.push('\n');
                 }
@@ -95,7 +95,7 @@ mod json_interface {
             let mut result = "{\n".to_string();
             result.push_str(format!("    \"{}\": {},\n    \"{}\": [", self.0, self.2.len(), self.1).as_str());
             for (i,item) in self.2.iter().enumerate() {
-                if(i != 0) {
+                if i != 0 {
                     result.push_str(", ");
                 }
                 item.clone().into().write_to_stan_json(&mut result);

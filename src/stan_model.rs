@@ -6,7 +6,7 @@ pub trait StanData {
 
 pub trait StanResultAnalyzer {
     type AnalyzeResult: Sized;
-    type Err: std::error::Error + From<StanError>;
+    type Err: std::error::Error + From<stan_error::StanError>;
     fn analyze(&self, output: std::process::Output, out_file: &str) -> Result<Self::AnalyzeResult, Self::Err>;
 }
 
@@ -26,18 +26,40 @@ pub trait StanModel {
     }
 }
 
-pub enum StanError {
-    DataError(String),
-    CompileIOError(std::io::Error),
-    IoError(std::io::Error),
-    CompileError(String),
-    ModelIsNotReady,
+mod stan_error {
+    #[derive(Debug)]
+    pub enum StanError {
+        DataError(String),
+        CompileIOError(std::io::Error),
+        IoError(std::io::Error),
+        CompileError(String),
+        ModelIsNotReady,
+    }
+    
+    impl std::fmt::Display for StanError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                StanError::DataError(msg) => write!(f, "Data error: {}", msg),
+                StanError::CompileIOError(e) => write!(f, "Compile IO error: {}", e),
+                StanError::IoError(e) => write!(f, "IO error: {}", e),
+                StanError::CompileError(msg) => write!(f, "Compile error: {}", msg),
+                StanError::ModelIsNotReady => write!(f, "Model is not ready"),
+            }
+        }
+    }
+    
+    impl Into<StanError> for std::io::Error {
+        fn into(self) -> StanError {
+            StanError::IoError(self)
+        }
+    }
+    
+    impl std::error::Error for StanError {}    
 }
-
 /// a standard StanModel implementation.
 mod std_stan_model {
     use std::fs::File;
-    use super::{StanData, StanError, StanModel};
+    use super::{StanData, stan_error::StanError, StanModel};
     use std::process::Command;
 
     pub struct StdStanModel<T: StanData> {
@@ -159,7 +181,7 @@ mod std_stan_model {
 }
 
 mod stan_command {
-    use super::{StanData, StanResultAnalyzer, StanModel, StanError};
+    use super::{StanData, StanResultAnalyzer, StanModel, stan_error::StanError};
     use std::collections::HashMap;
     use std::process::Command;
 
@@ -250,22 +272,127 @@ mod stan_command {
 }
 
 /// standard StanResultAnalyzer implementation for Sample and Optimize.
-mod stan_result {
-    use std::collections::HashMap;
-
-    pub enum StanResult {
-        McMc(McmcResult),
-        Optimize(OptimizeResult),
-        Other(String),
-    }
+mod stan_result_analyzer {
+    use super::{StanResultAnalyzer, stan_error::StanError};
+    use std::{collections::HashMap, io::Read};
 
     #[derive(Debug)]
-    pub struct McmcResult {
+    pub struct SampleResult {
         pub samples: HashMap<String, Vec<f64>>,
         pub length: usize,
     }
 
-    pub struct OptimizeResult {
+    pub struct SampleResultAnalyzer {}
 
+    impl StanResultAnalyzer for SampleResultAnalyzer {
+        type AnalyzeResult = SampleResult;
+        type Err = StanError;
+
+        /// Panic when the csv format is not correct.
+        fn analyze(&self, output: std::process::Output, out_file: &str) -> Result<Self::AnalyzeResult, Self::Err> {
+            let mut res = SampleResult {
+                samples: HashMap::new(),
+                length: 0,
+            };
+
+            let mut file = std::fs::File::open(out_file).map_err(|e| StanError::IoError(e))?;
+            let mut reader= String::new();
+            file.read_to_string(&mut reader).map_err(|e| StanError::IoError(e))?;
+
+            let mut arg_index = Vec::new();
+
+            for (i,line) in reader.lines().enumerate() {
+                if line.starts_with("#") {
+                    continue;
+                }
+
+                let parts = line.split(',');
+                if arg_index.is_empty() {
+                    for arg in parts {
+                        arg_index.push(arg.to_string());
+                    }
+                    for arg in arg_index.iter() {
+                        res.samples.insert(arg.clone(), Vec::new());
+                    }
+                } else {
+                    for (i,argv) in parts.enumerate() {
+                        if i >= arg_index.len() {
+                            panic!("Bad CSV Format: line {} has more columns than header", i);
+                        }
+                        res.samples.get_mut(arg_index[i].as_str()).unwrap().push(argv.parse().unwrap());
+                        res.length += 1;
+                    }
+                }
+            }
+
+            Ok(res)
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct OptimizeResult {
+        pub parameters_iter: HashMap<String, Vec<f64>>,
+        pub parameters: HashMap<String, f64>,
+        pub log_likelihood: f64,
+    }
+
+    pub struct OptimizeResultAnalyzer {}
+
+    impl StanResultAnalyzer for OptimizeResultAnalyzer {
+        type AnalyzeResult = OptimizeResult;
+        type Err = StanError;
+
+        fn analyze(&self, output: std::process::Output, out_file: &str) -> Result<Self::AnalyzeResult, Self::Err> {
+            let mut res = OptimizeResult {
+                parameters_iter: HashMap::new(),
+                parameters: HashMap::new(),
+                log_likelihood: 0.0,
+            };
+
+            let mut file = std::fs::File::open(out_file).map_err(|e| StanError::IoError(e))?;
+            let mut reader= String::new();
+            file.read_to_string(&mut reader).map_err(|e| StanError::IoError(e))?;
+
+            let mut arg_index = Vec::new();
+
+            for (i,line) in reader.lines().enumerate() {
+                if line.starts_with("#") {
+                    continue;
+                }
+
+                let parts = line.split(',');
+                if arg_index.is_empty() {
+                    for arg in parts {
+                        arg_index.push(arg.to_string());
+                    }
+                    for arg in arg_index.iter() {
+                        res.parameters_iter.insert(arg.clone(), Vec::new());
+                    }
+                } else {
+                    for (i,argv) in parts.enumerate() {
+                        if i >= arg_index.len() {
+                            panic!("Bad CSV Format: line {} has more columns than header", i);
+                        }
+                        res.parameters_iter.get_mut(arg_index[i].as_str()).unwrap().push(argv.parse().unwrap());
+                    }
+                }
+            }
+
+            for arg in arg_index.iter() {
+                if let Some(v) = res.parameters_iter.get(arg) {
+                    if v.len() > 0 {
+                        res.parameters.insert(arg.clone(), *(v.last().unwrap()));
+                    } else {
+                        panic!("Bad CSV Format: no value for {}", arg);
+                    }
+                } else {
+                    panic!("Bad CSV Format: no value for {}", arg);
+                }
+            }
+
+            res.log_likelihood = *res.parameters_iter.get("lp__").unwrap().last().unwrap();
+
+            Ok(res)
+        }
     }
 }
