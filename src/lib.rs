@@ -1,4 +1,5 @@
 mod data_entries;
+mod result_analyzer;
 mod stan_model;
 
 mod json_interface {
