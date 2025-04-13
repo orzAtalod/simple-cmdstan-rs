@@ -1,0 +1,8 @@
+[package]
+name = "simple-cmdstan-rs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+num = "0.4"
+impl-trait-for-tuples = "0.2.3"
