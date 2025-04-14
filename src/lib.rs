@@ -77,6 +77,13 @@ mod json_interface {
         }
     }
 
+    /// impl StanData trait for every tuple (&str, T)
+    /// the tuple will equal to { "{str}": T }
+    /// # Examples
+    /// ```
+    /// let test = ("val", 5);
+    /// assert_eq!(test.write_as_stan_data(), "{\n    \"val\": 5\n}");
+    /// ```
     impl<T:Into<DataEntry>+Clone> StanData for (&str,T) {
         fn write_as_stan_data(&self) -> String {
             let mut result = "{\n".to_string();
@@ -87,10 +94,11 @@ mod json_interface {
         }
     }
 
+    /// impl StanData trait for every tuple (char, &str, Vec<T>)
     /// char: the name of the vector size (size_name) (usually N)
-    /// &str: the name of the vector
+    /// &str: the name of the vector (vec_name)
     /// Vec<T>: the vector of data entries
-    /// translate to { "{size_name}": vec.len(), "{name}": [vec] }
+    /// translate to { "{size_name}": vec.len(), "{vec_name}": [vec] }
     impl<T:Into<DataEntry>+Clone> StanData for (char,&str,Vec<T>) {
         fn write_as_stan_data(&self) -> String {
             let mut result = "{\n".to_string();
@@ -105,12 +113,6 @@ mod json_interface {
             result
         }
     }
-
-    pub fn dump_stan_json<T:StanData>(data: &T, path: &str) -> Result<(), Error> {
-        let mut output = File::create(path)?;
-        write!(output, "{}", data.write_as_stan_data())?;
-        Ok(())
-    }
 }
 
 mod stan_interface {
@@ -118,5 +120,45 @@ mod stan_interface {
     pub fn stan_init(stan_home_path: &str) -> Result<(), std::io::Error> {
         Command::new("cd").arg(stan_home_path).status()?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod stan_data_test {
+    use crate::data_entries::core::*;
+    use crate::stan_model::StanData;
+    use std::fs::File;
+    use std::io::{Write, Error};
+
+    fn dump_stan_json<T:StanData>(data: &T, path: &str) -> Result<(), Error> {
+        let mut output = File::create(path)?;
+        write!(output, "{}", data.write_as_stan_data())?;
+        Ok(())
+    }
+
+    #[test]
+    fn base_test() {
+        let mut x = DataEntries::new();
+        x.add_entry("N", 5).add_entry("vec", vec![2,3,2,4,2]);
+        dump_stan_json(&x, "D:\\experimental\\base_test.json").unwrap();
+        assert_eq!(x.write_as_stan_data(),"{\n    \"N\": 5,\n    \"vec\": [2, 3, 2, 4, 2]\n}");
+    }
+
+    #[test]
+    fn nested_array() {
+        let mut x = DataEntries::new();
+        x.add_entry("N", 2)
+            .add_entry("M", 2)
+            .add_entry("vec", vec![vec![1,2], vec![3,4]]);
+        dump_stan_json(&x, "D:\\experimental\\nested_array.json").unwrap();
+        assert_eq!(x.write_as_stan_data(),"{\n    \"N\": 2,\n    \"M\": 2,\n    \"vec\": [[1, 2], [3, 4]]\n}");
+    }
+
+    #[test]
+    fn nested_empty_array() {
+        let mut x = DataEntries::new();
+        x.add_entry("N", 0).add_entry("M", 0).add_entry::<Vec<Vec<i32>>>("vec", vec![vec![]]);
+        dump_stan_json(&x, "D:\\experimental\\nested_empty_array.json").unwrap();
+        assert_eq!(x.write_as_stan_data(),"{\n    \"N\": 0,\n    \"M\": 0,\n    \"vec\": []\n}");
     }
 }

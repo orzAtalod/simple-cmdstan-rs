@@ -72,7 +72,7 @@ pub mod core {
 
 pub mod data_collections {
     use super::core::*;
-    use std::{collections::HashMap, iter::from_fn, fmt::Display, error::Error};
+    use std::{collections::HashMap, iter::from_fn, fmt::Display};
 
     #[derive(Debug, Clone)]
     pub enum DataCollectionError {
@@ -142,7 +142,16 @@ pub mod data_collections {
             }
         }
 
-        //clone the entires
+        /// used to add a batch of entries.
+        /// **Important**: it will clone the entries, so it's not suitable for big sheet.
+        /// # example:
+        /// ```
+        /// let x = DataCollection::new();
+        /// x.add_entries(&["N","y"], &[1,2]).unwrap();
+        /// let y = DataEntries::new();
+        /// y.add_entry("N",1).add_entry("y",2);
+        /// assert_eq!(x.entries.write_as_stan_data(), y.write_as_stan_data());
+        /// ```
         pub fn add_entries<T:Into<DataEntry>+Clone>(&mut self, name: &[&str], entries: &[T]) -> Result<&mut Self, DataCollectionError> {
             if name.len() != entries.len() {
                 return Err(DataCollectionError::AddEntryError(
@@ -154,7 +163,7 @@ pub mod data_collections {
             Ok(self)
         }
 
-        //take ownership of entries which should be a vector to avoid clone
+        /// take ownership of entries which should be a vector to avoid clone
         pub fn add_entries_and_consume<T:Into<DataEntry>>(&mut self, name: &[&str], entries: Vec<T>) -> Result<&mut Self, DataCollectionError> {
             if name.len() != entries.len() {
                 return Err(DataCollectionError::AddEntryError(
@@ -166,18 +175,18 @@ pub mod data_collections {
             Ok(self)
         }
 
-                // grammar sugar for add_entries
-            pub fn add_entry_from_func<T,F>(&mut self, name: &str, iter_n: usize, func: F) -> &mut Self
-            where
-                F: Fn() -> T,
-                T: Into<DataEntry>,
-            {
-                self.add_entry(name, from_fn(|| Some(func().into())).take(iter_n).collect::<Vec<_>>())
-            }
+        // grammar sugar for add_entries
+        pub fn add_entry_from_func<T,F>(&mut self, name: &str, iter_n: usize, func: F) -> &mut Self
+        where
+            F: Fn() -> T,
+            T: Into<DataEntry>,
+        {
+            self.add_entry(name, from_fn(|| Some(func().into())).take(iter_n).collect::<Vec<_>>())
+        }
 
-        //The function returns n results collected in a n-length vector
-        //The vector will be recombined into n iter_n-length array which will be added to the data collection
-        //If the function needs to return different type of results, consider changing them to DataEntry first.
+        // The function returns n results collected in a n-length vector
+        // The vector will be recombined into n iter_n-length array which will be added to the data collection
+        // If the function needs to return different type of results, consider changing them to DataEntry first.
         pub fn add_entries_from_func<T,F>(&mut self, name: &[&str], iter_n: usize, func: F) -> Result<&mut Self, DataCollectionError>
         where
             F: Fn() -> Vec<T>,
@@ -215,5 +224,78 @@ pub mod data_collections {
                 indexs: self.indexs,
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod data_entries_test {
+    use crate::stan_model::StanData;
+
+    use super::core::{DataEntry,DataEntries};
+    use super::data_collections::DataCollection;
+
+    fn setup() -> (DataCollection, DataEntries) {
+        let mut dc = DataCollection::new();
+        dc.add_entries(&["N","y"], &[1,2]).unwrap();
+        let mut dd = DataEntries::new();
+        dd.add_entry("N", 1).add_entry("y", 2);
+        (dc,dd)
+    }
+    
+    #[test]
+    fn test_add_entries() {
+        let (dc, dd) = setup();
+        assert_eq!(dc.entires.write_as_stan_data(), dd.write_as_stan_data());
+    }
+
+    #[test]
+    fn test_get_entry() {
+        let (dc, _) = setup();
+        assert_eq!(*dc.get_entry("N").unwrap(), DataEntry::Int(1));
+        assert_eq!(*dc.get_entry("y").unwrap(), DataEntry::Int(2));
+        assert_eq!(dc.get_entry("vec"), None);
+    }
+
+    #[test]
+    fn test_get_mut_entry() {
+        let (mut dc, _) = setup();
+        *dc.get_entry_mut("N").unwrap() = 3.into();
+        assert_eq!(*dc.get_entry("N").unwrap(), DataEntry::Int(3));
+        assert_eq!(dc.get_entry_mut("vec"), None);
+    }
+
+    #[test]
+    fn test_open_array() {
+        let (dc, mut dd) = setup();
+        let mut dc = dc.open_array("vec");
+        dc.add_item(1).add_item(3).add_item(2);
+        let dc = dc.close_array();
+        dd.add_entry("vec", vec![1,3,2]);
+        assert_eq!(dc.entires.write_as_stan_data(), dd.write_as_stan_data());
+    }
+
+    #[test]
+    fn test_add_entry_from_func() {
+        let (mut dc, mut dd) = setup();
+        dc.add_entry_from_func("var", 3, || 1);
+        dd.add_entry("var", vec![1,1,1]);
+        assert_eq!(dc.entires.write_as_stan_data(), dd.write_as_stan_data());
+    }
+
+    #[test]
+    fn test_add_entries_from_func() {
+        let (mut dc, mut dd) = setup();
+        dc.add_entries_from_func(&["var1","var2","var3"], 3, || vec![1,2,3]).unwrap();
+        dd.add_entry("var1", vec![1,1,1]);
+        dd.add_entry("var2", vec![2,2,2]);
+        dd.add_entry("var3", vec![3,3,3]);
+        assert_eq!(dc.entires.write_as_stan_data(), dd.write_as_stan_data());
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_add_entries_from_func_panic() {
+        let (mut dc, _) = setup();
+        dc.add_entries_from_func(&["var1","var2","var3"], 3, || vec![1,2,3,4]).unwrap();        
     }
 }
