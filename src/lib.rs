@@ -23,7 +23,7 @@ mod json_interface {
         }
 
         fn write_to_stan_json(&self, res: &mut String) {
-            if(self.is_empty_array()) {
+            if self.is_empty_array() {
                 res.push_str("[]"); // flat every [[[]]]-like structure to [] as documented in CmdStan website.
                 return;
             }
@@ -116,9 +116,10 @@ mod json_interface {
 }
 
 mod stan_interface {
-    use std::process::Command;
-    pub fn stan_init(stan_home_path: &str) -> Result<(), std::io::Error> {
-        Command::new("cd").arg(stan_home_path).status()?;
+    use std::env::set_current_dir;
+    use std::path::Path;
+    pub fn stan_init(stan_home_path: &Path) -> Result<(), std::io::Error> {
+        set_current_dir(stan_home_path)?;
         Ok(())
     }
 }

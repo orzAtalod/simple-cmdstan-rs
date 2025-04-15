@@ -1,5 +1,3 @@
-use std::process::Output;
-
 pub trait StanData {
     fn write_as_stan_data(&self) -> String;
 }
@@ -7,7 +5,7 @@ pub trait StanData {
 pub trait StanResultAnalyzer {
     type AnalyzeResult: Sized;
     type Err: std::error::Error + From<stan_error::StanError>;
-    fn analyze(&self, output: std::process::Output, out_file: &str) -> Result<Self::AnalyzeResult, Self::Err>;
+    fn analyze(&self, output: std::process::Output, out_file: &std::path::Path) -> Result<Self::AnalyzeResult, Self::Err>;
 }
 
 /// The Function `get_data_path` and `get_model_path` are only used after check_ready is true.
@@ -15,14 +13,10 @@ pub trait StanResultAnalyzer {
 /// Default implementation of get_workspace_path is the same as get_model_path, but it will remove the last part of the path.
 pub trait StanModel {
     fn check_ready(&self) -> bool;
-    fn get_model_path(&self) -> String;
-    fn get_data_path(&self) -> String;
-    fn get_workspace_path(&self) -> String {
-        let mut str = self.get_model_path();
-        while !str.ends_with("/") && !str.ends_with("\\") && !str.ends_with(":") {
-            str.pop();
-        }
-        return str;
+    fn get_model_excutable(&self) -> std::path::PathBuf;
+    fn get_data_path(&self) -> std::path::PathBuf;
+    fn get_workspace_path(&self) -> std::path::PathBuf {
+        self.get_model_excutable().parent().unwrap().to_path_buf()
     }
 }
 
@@ -34,16 +28,18 @@ mod stan_error {
         IoError(std::io::Error),
         CompileError(String),
         ModelIsNotReady,
+        BadParameter(String),
     }
     
     impl std::fmt::Display for StanError {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
-                StanError::DataError(msg) => write!(f, "Data error: {}", msg),
-                StanError::CompileIOError(e) => write!(f, "Compile IO error: {}", e),
-                StanError::IoError(e) => write!(f, "IO error: {}", e),
-                StanError::CompileError(msg) => write!(f, "Compile error: {}", msg),
+                StanError::DataError(msg) => write!(f, "Data error: {msg}"),
+                StanError::CompileIOError(e) => write!(f, "Compile IO error: {e}"),
+                StanError::IoError(e) => write!(f, "IO error: {e}"),
+                StanError::CompileError(msg) => write!(f, "Compile error: {msg}"),
                 StanError::ModelIsNotReady => write!(f, "Model is not ready"),
+                StanError::BadParameter(args) => write!(f, "Bad parameter for {args}")
             }
         }
     }
@@ -61,39 +57,36 @@ mod std_stan_model {
     use std::fs::File;
     use super::{StanData, stan_error::StanError, StanModel};
     use std::process::Command;
+    use std::path::{Path,PathBuf};
+    use std::ffi::OsStr;
+    use std::io::prelude::*;
+    use std::env::consts::OS;
 
     pub struct StdStanModel<T: StanData> {
-        dir: String,
-        name: String,
+        dir: PathBuf,
+        name: PathBuf,
         data: Option<T>,
-        data_path: Option<String>,
+        data_path: Option<PathBuf>,
         complied: bool,
     }
 
     impl<T: StanData> StdStanModel<T> {
         /// Create a new StanModel with the given directory and name.
-        /// Every space in the begin or end of directory or name will be trimmed.
-        /// If the directory does not end with a '/', it will be added.
-        /// If the name ends with '.stan', it will be removed.
-        pub fn new(dir: &str, name: &str) -> Self {
-            let mut dir = dir.trim().to_string();
-            if !dir.ends_with('/') {
-                dir.push('/');
-            }
-
+        /// if the name ends with extension that is excutable, the complied field will be set ture, otherwise false.
+        /// the extension will be removed.
+        pub fn new(dir: &Path, name: &Path) -> Self {
             let mut complied= false;
-            let mut name = name.trim().to_string();
-            if name.ends_with(".stan") {
-                name = name[..name.len() - 5].to_string();
+            let mut name = name.to_path_buf();
+            if let Some(ext) = name.extension() {
+                if ext == ".exe" || ext == ".run" || ext == ".bin" || ext == ".app" {
+                    complied = true;
+                }
             }
-            else if name.ends_with(".exe") {
-                name = name[..name.len() - 4].to_string();
-                complied = true;
-            }
+            name.set_extension("");
             
             Self {
-                dir: dir.to_string(),
-                name: name.to_string(),
+                dir: dir.to_path_buf(),
+                name,
                 data: None,
                 data_path: None,
                 complied,
@@ -107,8 +100,9 @@ mod std_stan_model {
             self
         }
 
-        pub fn set_data_path(&mut self, path: &str) {
-            self.data_path = Some(path.to_string());
+        pub fn set_data_path(&mut self, path: &str) -> &mut Self {
+            self.data_path = Some(Path::new(path).to_path_buf());
+            self
         }
 
         /// try to create a json file corresponding to the data.
@@ -119,15 +113,26 @@ mod std_stan_model {
                 return Err(StanError::DataError("No data provided".to_string()));
             }
             if self.data_path.is_none() {
-                self.data_path = Some(format!("{}/{}.data.json", self.dir, self.name));
+                let mut res = self.dir.clone();
+                res.push(&self.name);
+                res.push("data.json");
+                self.data_path = Some(res);
             }
 
             if let Some(data) = &self.data {
                 let mut file = File::create(self.data_path.clone().unwrap()).map_err(|e| StanError::IoError(e))?;
                 let content = data.write_as_stan_data();
-                std::io::Write::write_all(&mut file, content.as_bytes()).map_err(|e| StanError::IoError(e))?;
+                file.write_all( content.as_bytes()).map_err(|e| StanError::IoError(e))?;
                 Ok(self)
             } else { unreachable!() } // hint the complier
+        }
+
+        fn get_excutable_name(&self) -> PathBuf {
+            let mut res = self.dir.join(&self.name);
+            if OS == "windows" {
+                res.push(".exe");
+            }
+            res
         }
 
         pub fn complie(&mut self) -> Result<&mut Self, StanError> {
@@ -136,7 +141,7 @@ mod std_stan_model {
             }
             
             let command = Command::new("make")
-                .arg(format!("{}{}.exe", self.dir, self.name))
+                .arg(self.get_excutable_name())
                 .status().map_err(|e| StanError::CompileIOError(e))?;
 
             if !command.success() {
@@ -158,23 +163,15 @@ mod std_stan_model {
             self.complied && self.data_path.is_some()
         }
 
-        fn get_data_path(&self) -> String {
-            if let Some(path) = &self.data_path {
-                path.clone()
-            } else {
-                panic!("Data path is not set")
-            }
+        fn get_data_path(&self) -> PathBuf {
+            self.data_path.clone().unwrap()
         }
 
-        fn get_model_path(&self) -> String {
-            if self.complied {
-                format!("{}{}.exe", self.dir, self.name)
-            } else {
-                panic!("Model is not complied")
-            }
+        fn get_model_excutable(&self) -> PathBuf {
+            self.get_excutable_name()
         }
 
-        fn get_workspace_path(&self) -> String {
+        fn get_workspace_path(&self) -> PathBuf {
             self.dir.clone()
         }
     }
@@ -184,6 +181,7 @@ mod stan_command {
     use super::{StanData, StanResultAnalyzer, StanModel, stan_error::StanError};
     use std::collections::HashMap;
     use std::process::Command;
+    use std::path::{Path,PathBuf};
 
     pub enum StanCommandType {
         Sample,
@@ -219,7 +217,7 @@ mod stan_command {
         }
 
         pub fn execute<R:StanResultAnalyzer>(&mut self, analyzer: R) -> Result<R::AnalyzeResult, R::Err> {
-            let mut command = Command::new(format!(".\\{}", self.model.get_model_path()));
+            let mut command = Command::new(self.model.get_model_excutable());
 
             match self.command_type {
                 StanCommandType::Sample => command.arg("sample"),
@@ -227,35 +225,36 @@ mod stan_command {
                 StanCommandType::Other(ref s) => command.arg(s),
             };
 
+            command.arg("data");
             if self.command_args.contains_key("data") {
                 if let Some(Some(data)) = self.command_args.get("data") {
-                    command.arg(format!("data {}", data));
+                    command.arg(data);
                 } else {
-                    return Err(StanError::DataError("data file is not set".to_string()).into());
+                    return Err(StanError::BadParameter("data".to_string()).into());
                 }
             } else {
-                command.arg(format!("data file={}", self.model.get_data_path()));
+                command.arg(format!("file={}", self.model.get_data_path().display()));
             }
 
-            let output_file: String;
+            let output_file: PathBuf;
+            command.arg("output");
             if self.command_args.contains_key("output") {
-                if let Some(Some(output)) = self.command_args.get("output") {
-                    command.arg(format!("output {}", output));
-                    output_file = output.clone();
+                if let Some(Some(output_str)) = self.command_args.get("output") {
+                    command.arg(output_str);
+                    output_file = Path::new(&output_str[5..]).to_path_buf();
                 } else {
-                    return Err(StanError::DataError("output file is not set".to_string()).into());
+                    return Err(StanError::BadParameter("output".to_string()).into());
                 }
             } else {
-                output_file = format!("{}output.csv", self.model.get_workspace_path()).to_string();
-                command.arg(format!("output file={output_file}"));
+                output_file = self.model.get_workspace_path().join("output.csv");
+                command.arg(format!("file={}", output_file.display()));
             }
 
             for (key, value) in &self.command_args {
                 if key != "data" && key != "output" {
+                    command.arg(key);
                     if let Some(v) = value {
-                        command.arg(format!("{} {}", key, v));
-                    } else {
-                        command.arg(key);
+                        command.arg(v);
                     }
                 }
             }
@@ -275,6 +274,7 @@ mod stan_command {
 mod stan_result_analyzer {
     use super::{StanResultAnalyzer, stan_error::StanError};
     use std::{collections::HashMap, io::Read};
+    use std::path::Path;
 
     #[derive(Debug)]
     pub struct SampleResult {
@@ -289,7 +289,7 @@ mod stan_result_analyzer {
         type Err = StanError;
 
         /// Panic when the csv format is not correct.
-        fn analyze(&self, output: std::process::Output, out_file: &str) -> Result<Self::AnalyzeResult, Self::Err> {
+        fn analyze(&self, _: std::process::Output, out_file: &Path) -> Result<Self::AnalyzeResult, Self::Err> {
             let mut res = SampleResult {
                 samples: HashMap::new(),
                 length: 0,
@@ -342,7 +342,7 @@ mod stan_result_analyzer {
         type AnalyzeResult = OptimizeResult;
         type Err = StanError;
 
-        fn analyze(&self, output: std::process::Output, out_file: &str) -> Result<Self::AnalyzeResult, Self::Err> {
+        fn analyze(&self, _: std::process::Output, out_file: &Path) -> Result<Self::AnalyzeResult, Self::Err> {
             let mut res = OptimizeResult {
                 parameters_iter: HashMap::new(),
                 parameters: HashMap::new(),
@@ -394,5 +394,18 @@ mod stan_result_analyzer {
 
             Ok(res)
         }
+    }
+}
+
+#[cfg(test)]
+mod stan_model_test {
+    use crate::stan_interface::stan_init;
+    use std::path::{Path,PathBuf};
+    const PATHS: [&str;3] = [".conda\\Library\\bin\\cmdstan", "examples\\bernoulli\\", "bernoulli.stan"];
+    
+    #[test]
+    fn test_init() {
+        println!("{}",Path::new("quq\\qwq").display());
+        stan_init(Path::new(PATHS[0])).unwrap();
     }
 }

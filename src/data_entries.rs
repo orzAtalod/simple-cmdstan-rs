@@ -133,7 +133,7 @@ pub mod data_collections {
             }
         }
 
-        pub fn open_array(mut self, name: &str) -> DataCollectionUncompleted {
+        pub fn open_array(self, name: &str) -> DataCollectionUncompleted {
             DataCollectionUncompleted {
                 entries: self.entires, 
                 indexs: self.indexs, 
