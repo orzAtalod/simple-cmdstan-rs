@@ -2,14 +2,21 @@
 
 An interface with CmdStan.
 
+## Use
+
+``` Rust
+use simple-cmdstan-rs::prelude::*;
+```
+
 ## Initialize
 
 **Important!**
 
-use stan_init function to change the current directory to your StanHome, or the `make` command won't be excuted properly.
+use `stan_init` function to set the StanHome directory, or the `make` command won't be excuted properly.
 
 ``` Rust
-stan_init("D:\\Anaconda3\\envs\\stan\\Library\\bin\\cmdstan");
+stan_init(".conda\\Library\\bin\\cmdstan"); // Simple version
+stan_init(std::path::Path(".conda\\Library\\bin\\cmdstan")); // Complex version
 ```
 
 ## DataCollection
@@ -36,7 +43,7 @@ model_uncomplied_1.complie().unwrap();
 // Link the model with data
 model_uncomplied_1.link_data(/*Any DataCollection you created*/);
 // Any form of data that impl StanData trait is accepted!
-model_uncomplied_2.link_data(('N',"y",/*Vector that contains the data*/));
+model_uncomplied_2.link_data(('N',"y",vec![1,2,3]));
 // Use write_stan_data method to dump the data
 model_uncomplied_1.write_stan_data();
 // ..Or directly link it to an already exists data
@@ -48,6 +55,8 @@ model_complied.set_data_path("examples\\bernoulli\\bernoulli.data.json");
 A StanCommand struct is a uniformed platform to create formatted stan command.
 
 Currently it's not smart enough to auto-complete the argument and figure out the bad argument :(. (It does need a lot of work!)
+
+## StanDataAnalyzer
 
 ## TODO
 
