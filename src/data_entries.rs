@@ -350,6 +350,7 @@ mod stan_data_test {
     use crate::prelude::*;
     use std::fs::File;
     use std::io::{Write, Error};
+    use num::{complex, Complex};
 
     fn dump_stan_json<T:StanData>(data: &T, path: &str) -> Result<(), Error> {
         let mut output = File::create(path)?;
@@ -381,6 +382,36 @@ mod stan_data_test {
         x.add_entry("N", 0).add_entry("M", 0).add_entry::<Vec<Vec<i32>>>("vec", vec![vec![]]);
         dump_stan_json(&x, "D:\\experimental\\nested_empty_array.json").unwrap();
         assert_eq!(x.write_as_stan_data(),"{\n    \"N\": 0,\n    \"M\": 0,\n    \"vec\": []\n}");
+    }
+
+    #[test]
+    fn test_tuple() {
+        let mut x = DataEntries::new();
+        x.add_entry("N", 2).add_entry("vec", vec![(1,2),(3,4)]);
+        dump_stan_json(&x, "D:\\experimental\\tuple.json").unwrap();
+        assert_eq!(x.write_as_stan_data(),"{\n    \"N\": 2,\n    \"vec\": [{\"1\": 1, \"2\": 2}, {\"1\": 3, \"2\": 4}]\n}");
+    }
+
+    #[test]
+    fn test_complex() {
+        let mut x = DataEntries::new();
+        x.add_entry("N", 2).add_entry("vec", vec![Complex::new(1,2), Complex::new(3,4)]);
+        dump_stan_json(&x, "D:\\experimental\\complex.json").unwrap();
+        assert_eq!(x.write_as_stan_data(),"{\n    \"N\": 2,\n    \"vec\": [[1, 2], [3, 4]]\n}");
+    }
+
+    #[test]
+    fn test_tup_dat() {
+        let datx = ("N",3);
+        dump_stan_json(&datx, "D:\\experimental\\complex.json").unwrap();
+        assert_eq!(datx.write_as_stan_data(), "{\n    \"N\": 3\n}");
+    }
+
+    #[test]
+    fn test_multi_tup_dat() {
+        let datvec = ('N', "vec", vec![1,2,3]);
+        dump_stan_json(&datvec, "D:\\experimental\\datvec.json").unwrap();
+        assert_eq!(datvec.write_as_stan_data(), "{\n    \"N\": 3,\n    \"vec\": [1, 2, 3]\n}");
     }
 
     fn setup() -> (DataCollection, DataEntries) {
