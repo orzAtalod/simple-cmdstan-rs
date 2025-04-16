@@ -78,7 +78,7 @@ mod std_stan_model {
             let mut complied= false;
             let mut name = name.to_path_buf();
             if let Some(ext) = name.extension() {
-                if ext == ".exe" || ext == ".run" || ext == ".bin" || ext == ".app" {
+                if ext == "exe" || ext == "run" || ext == "bin" || ext == "app" {
                     complied = true;
                 }
             }
@@ -115,7 +115,7 @@ mod std_stan_model {
             if self.data_path.is_none() {
                 let mut res = self.dir.clone();
                 res.push(&self.name);
-                res.push("data.json");
+                res.set_extension("data.json");
                 self.data_path = Some(res);
             }
 
@@ -130,7 +130,7 @@ mod std_stan_model {
         fn get_excutable_name(&self) -> PathBuf {
             let mut res = self.dir.join(&self.name);
             if OS == "windows" {
-                res.push(".exe");
+                res.set_extension("exe");
             }
             res
         }
@@ -320,8 +320,8 @@ mod stan_result_analyzer {
                             panic!("Bad CSV Format: line {} has more columns than header", i);
                         }
                         res.samples.get_mut(arg_index[i].as_str()).unwrap().push(argv.parse().unwrap());
-                        res.length += 1;
                     }
+                    res.length += 1;
                 }
             }
 
@@ -399,13 +399,58 @@ mod stan_result_analyzer {
 
 #[cfg(test)]
 mod stan_model_test {
-    use crate::stan_interface::stan_init;
+    use crate::{data_entries::core::DataEntries, stan_interface::stan_init, stan_model::StanModel};
     use std::path::{Path,PathBuf};
+    use super::stan_result_analyzer::SampleResultAnalyzer;
+    use super::std_stan_model::*;
+    use super::stan_command::{StanCommand,StanCommandType};
     const PATHS: [&str;3] = [".conda\\Library\\bin\\cmdstan", "examples\\bernoulli\\", "bernoulli.stan"];
     
     #[test]
     fn test_init() {
-        println!("{}",Path::new("quq\\qwq").display());
         stan_init(Path::new(PATHS[0])).unwrap();
+    }
+
+    #[test]
+    fn test_complie() {
+        stan_init(Path::new(PATHS[0])).unwrap();
+        let mut stm = StdStanModel::<DataEntries>::new(Path::new(PATHS[1]),Path::new(PATHS[2]));
+        println!("{}",stm.get_model_excutable().display());
+        stm.complie().unwrap();
+        assert!(!stm.check_ready());
+    }
+
+    #[test]
+    fn test_dump_data() {
+        stan_init(Path::new(PATHS[0])).unwrap();
+        let mut stm = StdStanModel::<DataEntries>::new(Path::new(PATHS[1]), Path::new("bernoulli2.exe"));
+        let mut de = DataEntries::new();
+        de.add_entry("N", 10);
+        de.add_entry("y", vec![0,1,0,0,0,0,0,0,0,1]);
+        stm.link_data(de);
+        stm.write_stan_data().unwrap();
+    }
+
+    #[test]
+    fn test_model_ready() {
+        stan_init(Path::new(PATHS[0])).unwrap();
+        let mut stm = StdStanModel::<DataEntries>::new(Path::new(PATHS[1]), Path::new("bernoulli2.exe"));
+        assert!(!stm.check_ready());
+        stm.set_data_path("examples\\bernoulli\\bernoulli.data.json");
+        assert!(stm.check_ready());
+    }
+
+    #[test]
+    fn test_command_sample() {
+        stan_init(Path::new(PATHS[0])).unwrap();
+        let mut stm = StdStanModel::<DataEntries>::new(Path::new(PATHS[1]), Path::new("bernoulli.exe"));
+        stm.set_data_path("examples\\bernoulli\\bernoulli.data.json");
+        let mut cmd = StanCommand::new(&stm, StanCommandType::Sample).unwrap();
+        let res = cmd.execute(SampleResultAnalyzer {}).unwrap();
+        println!("ends with {} samples.", res.length);
+        assert!(res.length == 1000);
+        assert!(res.samples.contains_key("lp__"));
+        assert!(res.samples.contains_key("theta"));
+        assert!(!res.samples.contains_key("alpha"));
     }
 }
