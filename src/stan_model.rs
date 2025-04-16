@@ -400,10 +400,12 @@ mod stan_result_analyzer {
 #[cfg(test)]
 mod stan_model_test {
     use crate::{data_entries::core::DataEntries, stan_interface::stan_init, stan_model::StanModel};
+    use std::fs::File;
     use std::path::{Path,PathBuf};
     use super::stan_result_analyzer::SampleResultAnalyzer;
     use super::std_stan_model::*;
     use super::stan_command::{StanCommand,StanCommandType};
+    use std::io::Read;
     const PATHS: [&str;3] = [".conda\\Library\\bin\\cmdstan", "examples\\bernoulli\\", "bernoulli.stan"];
     
     #[test]
@@ -452,5 +454,22 @@ mod stan_model_test {
         assert!(res.samples.contains_key("lp__"));
         assert!(res.samples.contains_key("theta"));
         assert!(!res.samples.contains_key("alpha"));
+    }
+
+    #[test]
+    fn test_command_sample_with_arg() {
+        stan_init(Path::new(PATHS[0])).unwrap();
+        let mut stm = StdStanModel::<DataEntries>::new(Path::new(PATHS[1]), Path::new("bernoulli.exe"));
+        stm.set_data_path("examples\\bernoulli\\bernoulli.data.json");
+        
+        let mut cmd = StanCommand::new(&stm, StanCommandType::Sample).unwrap();
+        cmd.add_args("random", Some("seed=20060626"));
+        cmd.add_args("output", Some("file=output1.csv"));
+        let res1 = cmd.execute(SampleResultAnalyzer {}).unwrap();
+        let mut cmd = StanCommand::new(&stm, StanCommandType::Sample).unwrap();
+        cmd.add_args("output", Some("file=output2.csv"));
+        cmd.add_args("random", Some("seed=20060626"));
+        let res2 = cmd.execute(SampleResultAnalyzer {}).unwrap();
+        assert_eq!(res1.length, res2.length);
     }
 }

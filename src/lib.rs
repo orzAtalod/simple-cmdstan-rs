@@ -119,7 +119,9 @@ mod stan_interface {
     use std::env::set_current_dir;
     use std::path::Path;
     pub fn stan_init(stan_home_path: &Path) -> Result<(), std::io::Error> {
-        set_current_dir(stan_home_path)?;
+        if !std::env::current_dir()?.ends_with("cmdstan") {
+            set_current_dir(stan_home_path)?;
+        }
         Ok(())
     }
 }
