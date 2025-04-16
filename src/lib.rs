@@ -1,120 +1,62 @@
 mod data_entries;
 mod result_analyzer;
 mod stan_model;
+mod stan_command;
 
-mod json_interface {
-    use crate::data_entries::core::*;
-    use crate::stan_model::StanData;
-    use std::fs::File;
-    use std::io::{Write, Error};
+pub trait StanData {
+    fn write_as_stan_data(&self) -> String;
+}
 
-    impl DataEntry {
-        fn is_empty_array(&self) -> bool {
-            match self {
-                DataEntry::Array(arr) => {
-                    match arr.len() {
-                        0 => true,
-                        1 => arr[0].is_empty_array(),
-                        _ => false,
-                    }
-                },
-                _ => false,
-            }
-        }
+pub trait StanResultAnalyzer {
+    type AnalyzeResult: Sized;
+    type Err: std::error::Error + From<crate::StanError>;
+    fn analyze(&self, output: std::process::Output, out_file: &std::path::Path) -> Result<Self::AnalyzeResult, Self::Err>;
+}
 
-        fn write_to_stan_json(&self, res: &mut String) {
-            if self.is_empty_array() {
-                res.push_str("[]"); // flat every [[[]]]-like structure to [] as documented in CmdStan website.
-                return;
-            }
-            match self {
-                DataEntry::Int(i) => res.push_str(&i.to_string()),
-                DataEntry::Real(r) => res.push_str(&r.to_string()),
-                DataEntry::Complex((r, i)) => {
-                    res.push_str(&format!("[{}, {}]", r, i));
-                }
-                DataEntry::Array(arr) => {
-                    res.push('[');
-                    for (i, item) in arr.iter().enumerate() {
-                        if i != 0 {
-                            res.push(',');
-                            res.push(' ');
-                        }
-                        item.write_to_stan_json(res);
-                    }
-                    res.push(']');
-                }
-                DataEntry::Tuple(tup) => {
-                    res.push('{');
-                    for (i, item) in tup.iter().enumerate() {
-                        if i != 0 {
-                            res.push(',');
-                            res.push(' ');
-                        }
-                        res.push_str(&format!("\"{}\": ", i+1));
-                        item.write_to_stan_json(res);
-                    }
-                    res.push('}');
-                }
-            }
-        }
-    }
-
-    impl StanData for DataEntries {
-        fn write_as_stan_data(&self) -> String {
-            let mut result = "{\n".to_string();
-            for (i, (name, entry)) in self.datas.iter().enumerate() {
-                if i != 0 {
-                    result.push(',');
-                    result.push('\n');
-                }
-                result.push_str("    ");
-                result.push_str(&format!("\"{}\": ", name));
-                entry.write_to_stan_json(&mut result);
-            }
-            result.push_str("\n}");
-            result
-        }
-    }
-
-    /// impl StanData trait for every tuple (&str, T)
-    /// the tuple will equal to { "{str}": T }
-    /// # Examples
-    /// ```
-    /// let test = ("val", 5);
-    /// assert_eq!(test.write_as_stan_data(), "{\n    \"val\": 5\n}");
-    /// ```
-    impl<T:Into<DataEntry>+Clone> StanData for (&str,T) {
-        fn write_as_stan_data(&self) -> String {
-            let mut result = "{\n".to_string();
-            result.push_str(format!("    \"{}\": ",self.0).as_str());
-            self.1.clone().into().write_to_stan_json(&mut result);
-            result.push_str("\n}");
-            result
-        }
-    }
-
-    /// impl StanData trait for every tuple (char, &str, Vec<T>)
-    /// char: the name of the vector size (size_name) (usually N)
-    /// &str: the name of the vector (vec_name)
-    /// Vec<T>: the vector of data entries
-    /// translate to { "{size_name}": vec.len(), "{vec_name}": [vec] }
-    impl<T:Into<DataEntry>+Clone> StanData for (char,&str,Vec<T>) {
-        fn write_as_stan_data(&self) -> String {
-            let mut result = "{\n".to_string();
-            result.push_str(format!("    \"{}\": {},\n    \"{}\": [", self.0, self.2.len(), self.1).as_str());
-            for (i,item) in self.2.iter().enumerate() {
-                if i != 0 {
-                    result.push_str(", ");
-                }
-                item.clone().into().write_to_stan_json(&mut result);
-            }
-            result.push_str("]\n}");
-            result
-        }
+pub trait StanModel {
+    fn check_ready(&self) -> bool;
+    fn get_model_excutable(&self) -> std::path::PathBuf;
+    fn get_data_path(&self) -> std::path::PathBuf;
+    fn get_workspace_path(&self) -> std::path::PathBuf {
+        self.get_model_excutable().parent().unwrap().to_path_buf()
     }
 }
 
+pub use stan_error::StanError;
+mod stan_error {
+    #[derive(Debug)]
+    pub enum StanError {
+        DataError(String),
+        CompileIOError(std::io::Error),
+        IoError(std::io::Error),
+        CompileError(String),
+        ModelIsNotReady,
+        BadParameter(String),
+    }
+    
+    impl std::fmt::Display for StanError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                StanError::DataError(msg) => write!(f, "Data error: {msg}"),
+                StanError::CompileIOError(e) => write!(f, "Compile IO error: {e}"),
+                StanError::IoError(e) => write!(f, "IO error: {e}"),
+                StanError::CompileError(msg) => write!(f, "Compile error: {msg}"),
+                StanError::ModelIsNotReady => write!(f, "Model is not ready"),
+                StanError::BadParameter(args) => write!(f, "Bad parameter for {args}")
+            }
+        }
+    }
+    
+    impl Into<StanError> for std::io::Error {
+        fn into(self) -> StanError {
+            StanError::IoError(self)
+        }
+    }
+    
+    impl std::error::Error for StanError {}    
+}
+
+pub use stan_interface::stan_init;
 mod stan_interface {
     use std::env::set_current_dir;
     use std::path::Path;
@@ -126,42 +68,25 @@ mod stan_interface {
     }
 }
 
-#[cfg(test)]
-mod stan_data_test {
-    use crate::data_entries::core::*;
-    use crate::stan_model::StanData;
-    use std::fs::File;
-    use std::io::{Write, Error};
+pub mod prelude {
+    // traits
+    pub use super::StanData;
+    pub use super::StanResultAnalyzer;
+    pub use super::StanModel;
 
-    fn dump_stan_json<T:StanData>(data: &T, path: &str) -> Result<(), Error> {
-        let mut output = File::create(path)?;
-        write!(output, "{}", data.write_as_stan_data())?;
-        Ok(())
-    }
+    // importants
+    pub use super::StanError;
+    pub use super::stan_init;
 
-    #[test]
-    fn base_test() {
-        let mut x = DataEntries::new();
-        x.add_entry("N", 5).add_entry("vec", vec![2,3,2,4,2]);
-        dump_stan_json(&x, "D:\\experimental\\base_test.json").unwrap();
-        assert_eq!(x.write_as_stan_data(),"{\n    \"N\": 5,\n    \"vec\": [2, 3, 2, 4, 2]\n}");
-    }
-
-    #[test]
-    fn nested_array() {
-        let mut x = DataEntries::new();
-        x.add_entry("N", 2)
-            .add_entry("M", 2)
-            .add_entry("vec", vec![vec![1,2], vec![3,4]]);
-        dump_stan_json(&x, "D:\\experimental\\nested_array.json").unwrap();
-        assert_eq!(x.write_as_stan_data(),"{\n    \"N\": 2,\n    \"M\": 2,\n    \"vec\": [[1, 2], [3, 4]]\n}");
-    }
-
-    #[test]
-    fn nested_empty_array() {
-        let mut x = DataEntries::new();
-        x.add_entry("N", 0).add_entry("M", 0).add_entry::<Vec<Vec<i32>>>("vec", vec![vec![]]);
-        dump_stan_json(&x, "D:\\experimental\\nested_empty_array.json").unwrap();
-        assert_eq!(x.write_as_stan_data(),"{\n    \"N\": 0,\n    \"M\": 0,\n    \"vec\": []\n}");
-    }
+    // structs
+    pub use crate::stan_model::std_stan_model::StdStanModel;
+    pub use crate::stan_command::stan_command::StanCommand;
+    pub use crate::stan_command::stan_command::StanCommandType;
+    pub use crate::data_entries::data_entry::DataEntry;
+    pub use crate::data_entries::data_entry::DataEntries;
+    pub use crate::data_entries::data_collections::DataCollection;
+    pub use crate::result_analyzer::ResultAnalyzerError;
+    pub use crate::result_analyzer::stan_result_analyzer::{
+        RawTable, RawTableAnalyzer, SampleResult, SampleResultAnalyzer, OptimizeResult, OptimizeResultAnalyzer
+    };
 }
