@@ -61,7 +61,6 @@ Currently it's not smart enough to auto-complete the argument and figure out the
 ## TODO
 
 - [ ] Add a method to insert vec<vec<T\>\> into DataCollection without a large number of copies.
-- [ ] The type of path is String, but it needs to be replaced with std::path::Path to achieve better cross-platform consistency.
 - [ ] The command is based on Windows, it may needs to be modified to support Linux and Mac.
 - [ ] Add parallel
 - [ ] Add more commands (like diagnose toolset)
