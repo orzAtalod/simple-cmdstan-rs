@@ -83,7 +83,7 @@ pub mod stan_result_analyzer {
                 let rt = (RawTableAnalyzer{}).analyze(ot, out_file)?;
                 let mut res = SampleResult {
                     samples: HashMap::new(),
-                    length: rt.args[0].len(),
+                    length: rt.argv[0].len(),
                 };
 
                 for (name, vec) in rt.args.into_iter().zip(rt.argv.into_iter()) {

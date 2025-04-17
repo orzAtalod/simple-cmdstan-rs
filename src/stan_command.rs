@@ -1,5 +1,6 @@
 pub mod stan_command {
     use crate::prelude::*;
+    use crate::stan_interface::STAN_HOME_KEY;
     use std::collections::HashMap;
     use std::process::Command;
     use std::path::{Path,PathBuf};
@@ -37,6 +38,7 @@ pub mod stan_command {
             self
         }
 
+        /// panic when not inited.
         pub fn execute<R:StanResultAnalyzer>(&mut self, analyzer: R) -> Result<R::AnalyzeResult, R::Err> {
             let mut command = Command::new(self.model.get_model_excutable());
 
@@ -118,12 +120,24 @@ mod test_command {
         
         let mut cmd = StanCommand::new(&stm, StanCommandType::Sample).unwrap();
         cmd.add_args("random", Some("seed=20060626"));
-        cmd.add_args("output", Some("file=output1.csv"));
+        cmd.add_args("output", Some("file=examples\\bernoulli\\outputs\\output1.csv"));
         let res1 = cmd.execute(SampleResultAnalyzer {}).unwrap();
         let mut cmd = StanCommand::new(&stm, StanCommandType::Sample).unwrap();
-        cmd.add_args("output", Some("file=output2.csv"));
+        cmd.add_args("output", Some("file=examples\\bernoulli\\outputs\\output2.csv"));
         cmd.add_args("random", Some("seed=20060626"));
         let res2 = cmd.execute(SampleResultAnalyzer {}).unwrap();
+        println!("res1.len={}, res2.len={}", res1.length, res2.length);
         assert_eq!(res1.length, res2.length);
+    }
+
+    #[test]
+    #[should_panic]
+    #[ignore = "should be tested in single-thread"]
+    fn test_panic_without_init() {
+        let mut stm = StdStanModel::<DataEntries>::new(Path::new(PATHS[1]), Path::new("bernoulli3.stan"));
+        stm.set_data_path("examples\\bernoulli\\bernoulli.data.json");
+        stm.complie().unwrap();
+        let mut cmd = StanCommand::new(&stm, StanCommandType::Sample).unwrap();
+        let res = cmd.execute(SampleResultAnalyzer {}).unwrap();
     }
 }

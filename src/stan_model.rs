@@ -1,11 +1,12 @@
 /// a standard StanModel implementation.
 pub mod std_stan_model {
     use std::fs::File;
-    use crate::{StanError, StanModel, StanData};
+    use crate::prelude::*;
     use std::process::Command;
-    use std::path::{Path,PathBuf};
+    use std::path::{Path,PathBuf,absolute};
     use std::io::prelude::*;
     use std::env::consts::OS;
+    use crate::stan_interface::STAN_HOME_KEY;
 
     pub struct StdStanModel<T: StanData> {
         dir: PathBuf,
@@ -85,8 +86,10 @@ pub mod std_stan_model {
                 return Ok(self);
             }
             
+            let absolute_excutable = absolute(self.get_excutable_name()).map_err(|e| StanError::IoError(e))?;
             let command = Command::new("make")
-                .arg(self.get_excutable_name())
+                .current_dir(std::env::var(STAN_HOME_KEY).unwrap())
+                .arg(absolute_excutable)
                 .status().map_err(|e| StanError::CompileIOError(e))?;
 
             if !command.success() {
@@ -136,7 +139,7 @@ mod stan_model_test {
     #[test]
     fn test_complie() {
         stan_init(Path::new(PATHS[0])).unwrap();
-        let mut stm = StdStanModel::<DataEntries>::new(Path::new(PATHS[1]),Path::new(PATHS[2]));
+        let mut stm = StdStanModel::<DataEntries>::new(Path::new(PATHS[1]),Path::new("bernoulli2.stan"));
         println!("{}",stm.get_model_excutable().display());
         stm.complie().unwrap();
         assert!(!stm.check_ready());
