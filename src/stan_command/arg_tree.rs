@@ -24,27 +24,6 @@ pub trait ArgThrough {
     fn arg_through(&self, cmd: &mut Command) -> Result<(), ArgError>;
 }
 
-pub struct ArgTreeLinks {
-    trees: Vec<Box<dyn ArgThrough>>,
-}
-
-impl ArgThrough for ArgTreeLinks {
-    fn arg_type(&self) -> Result<ArgType, ArgError> {
-        if let Some(at) = self.trees.first() {
-            at.arg_type()
-        } else {
-            Err(ArgError::NoArgTree)
-        }
-    }
-
-    fn arg_through(&self, cmd: &mut Command) -> Result<(), ArgError> {
-        for at in self.trees.iter() {
-            at.arg_through(cmd)?;
-        }
-        Ok(())
-    }
-}
-
 #[derive(Debug)]
 pub struct WithCommonArgs<T:ArgThrough>  {
     pub root: T,
