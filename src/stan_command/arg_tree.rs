@@ -1,12 +1,31 @@
 use std::{ffi::{OsStr, OsString}, process::Command};
 
-pub enum ArgError {
-    NoArgTree,
-    NotValidArgTreeType(String),
-    BadPath(String),
-    BadArgumentValue(String),
-    FileSystemError(std::io::Error),
+mod arg_error {
+    use std::{error::Error, fmt::Display};
+
+    #[derive(Debug)]
+    pub enum ArgError {
+        NotValidArgTreeType(String),
+        BadPath(String),
+        BadArgumentValue(String),
+        FileSystemError(std::io::Error),
+    }
+
+    impl Display for ArgError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Self::NotValidArgTreeType(s) => write!(f, "{s}"),
+                Self::BadPath(s) => write!(f, "{s}"),
+                Self::BadArgumentValue(s) => write!(f, "{s}"),
+                Self::FileSystemError(e) => write!(f, "file system error: {e}"),
+            }
+        }
+    }
+
+    impl Error for ArgError {}
 }
+
+use arg_error::ArgError;
 
 pub enum ArgType {
     Sample,
