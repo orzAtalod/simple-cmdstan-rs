@@ -9,7 +9,14 @@ pub enum ArgError {
 }
 
 pub enum ArgType {
-
+    Sample,
+    Optimize,
+    Variational,
+    Diagnose,
+    GenerateQuantities,
+    Pathfinder,
+    LogProb,
+    Laplace,
 }
 
 pub trait ArgThrough {
