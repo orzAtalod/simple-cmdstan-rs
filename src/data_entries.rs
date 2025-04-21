@@ -246,7 +246,7 @@ mod json_interface {
             }
         }
 
-        fn write_to_stan_json(&self, res: &mut String) {
+        pub fn write_to_stan_json(&self, res: &mut String) {
             if self.is_empty_array() {
                 res.push_str("[]"); // flat every [[[]]]-like structure to [] as documented in CmdStan website.
                 return;

@@ -1,6 +1,7 @@
+mod arg_tree;
+
 pub mod stan_command {
     use crate::prelude::*;
-    use crate::stan_interface::STAN_HOME_KEY;
     use std::collections::HashMap;
     use std::process::Command;
     use std::path::{Path,PathBuf};
