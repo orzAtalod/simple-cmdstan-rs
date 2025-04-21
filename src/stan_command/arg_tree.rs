@@ -1,4 +1,4 @@
-use std::{ffi::{OsString, OsStr}, process::Command};
+use std::{ffi::{OsStr, OsString}, process::Command};
 
 pub enum ArgError {
     NoArgTree,
@@ -8,7 +8,7 @@ pub enum ArgError {
     FileSystemError(std::io::Error),
 }
 
-enum ArgType {
+pub enum ArgType {
 
 }
 
@@ -17,7 +17,7 @@ pub trait ArgThrough {
     fn arg_through(&self, cmd: &mut Command) -> Result<(), ArgError>;
 }
 
-struct ArgTreeLinks {
+pub struct ArgTreeLinks {
     trees: Vec<Box<dyn ArgThrough>>,
 }
 
@@ -35,6 +35,62 @@ impl ArgThrough for ArgTreeLinks {
             at.arg_through(cmd)?;
         }
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct WithCommonArgs<T:ArgThrough>  {
+    pub root: T,
+    pub id: ArgID,
+    pub data: ArgData,
+    pub init: ArgInit,
+    pub random: ArgRandom,
+    pub output: ArgOutput,
+    pub num_threads: ArgNumThreads,
+}
+
+impl<T:ArgThrough> ArgThrough for WithCommonArgs<T> {
+    fn arg_type(&self) -> Result<ArgType, ArgError> {
+        self.root.arg_type()
+    }
+
+    fn arg_through(&self, cmd: &mut Command) -> Result<(), ArgError> {
+        self.root.arg_through(cmd)?;
+        self.id.arg_through(cmd)?;
+        self.data.arg_through(cmd)?;
+        self.init.arg_through(cmd)?;
+        self.random.arg_through(cmd)?;
+        self.output.arg_through(cmd)?;
+        self.num_threads.arg_through(cmd)?;
+        Ok(())
+    }
+}
+
+impl<T:ArgThrough> WithCommonArgs<T> {
+    pub fn new(root: T) -> Self {
+        Self {
+            root,
+            id: ArgID::new(),
+            data: ArgData::new(),
+            init: ArgInit::new(),
+            random: ArgRandom::new(),
+            output: ArgOutput::new(),
+            num_threads: ArgNumThreads::new(),
+        }
+    }
+}
+
+impl<T:ArgThrough+Default> Default for WithCommonArgs<T> {
+    fn default() -> Self {
+        Self {
+            root: T::default(),
+            id: ArgID::new(),
+            data: ArgData::new(),
+            init: ArgInit::new(),
+            random: ArgRandom::new(),
+            output: ArgOutput::new(),
+            num_threads: ArgNumThreads::new(),
+        }
     }
 }
 
@@ -60,7 +116,7 @@ pub fn verify_file_writeable(path: &std::path::Path) -> Result<(), ArgError> {
 }
 
 mod common_arg_trees {
-    use std::{default, fs::exists, path::{Path, PathBuf}};
+    use std::path::{Path, PathBuf};
     use super::*;
 
     mod arg_id {
