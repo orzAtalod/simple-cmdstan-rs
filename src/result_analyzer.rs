@@ -20,7 +20,7 @@ pub mod stan_result_analyzer {
             pub argv: Vec<Vec<f64>>,
         }
 
-        pub struct RawTableAnalyzer {}
+        pub struct RawTableAnalyzer;
 
         impl StanResultAnalyzer for RawTableAnalyzer {
             type AnalyzeResult = RawTable;
@@ -72,7 +72,7 @@ pub mod stan_result_analyzer {
             pub length: usize,
         }
 
-        pub struct SampleResultAnalyzer {}
+        pub struct SampleResultAnalyzer;
 
         impl StanResultAnalyzer for SampleResultAnalyzer {
             type AnalyzeResult = SampleResult;
@@ -80,7 +80,7 @@ pub mod stan_result_analyzer {
 
             /// Panic when the csv format is not correct.
             fn analyze(&self, ot: std::process::Output, out_file: &Path) -> Result<Self::AnalyzeResult, Self::Err> {
-                let rt = (RawTableAnalyzer{}).analyze(ot, out_file)?;
+                let rt = RawTableAnalyzer.analyze(ot, out_file)?;
                 let mut res = SampleResult {
                     samples: HashMap::new(),
                     length: rt.argv[0].len(),
@@ -103,14 +103,14 @@ pub mod stan_result_analyzer {
             pub log_likelihood: f64,
         }
     
-        pub struct OptimizeResultAnalyzer {}
+        pub struct OptimizeResultAnalyzer;
     
         impl StanResultAnalyzer for OptimizeResultAnalyzer {
             type AnalyzeResult = OptimizeResult;
             type Err = StanError;
     
             fn analyze(&self, ot: std::process::Output, out_file: &Path) -> Result<Self::AnalyzeResult, Self::Err> {
-                let rt = (RawTableAnalyzer{}).analyze(ot, out_file)?;
+                let rt = RawTableAnalyzer.analyze(ot, out_file)?;
 
                 let mut res = OptimizeResult {
                     parameters: HashMap::new(),
