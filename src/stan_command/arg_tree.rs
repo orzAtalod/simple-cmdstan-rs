@@ -522,4 +522,4 @@ mod common_arg_trees {
     pub use arg_output::*;
 }
 
-use common_arg_trees::{ArgID, ArgData, ArgInit, ArgRandom, ArgNumThreads, ArgOutput};
+pub use common_arg_trees::{ArgID, ArgData, ArgInit, ArgRandom, ArgNumThreads, ArgOutput};
