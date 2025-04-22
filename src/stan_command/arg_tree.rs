@@ -1,4 +1,5 @@
 use std::{ffi::{OsStr, OsString}, path::{Path, PathBuf}, process::Command};
+pub const EPS: f64 = f64::EPSILON * 10.0;
 
 mod arg_error {
     use std::{error::Error, fmt::Display};
@@ -25,7 +26,7 @@ mod arg_error {
     impl Error for ArgError {}
 }
 
-use arg_error::ArgError;
+pub use arg_error::ArgError;
 
 pub enum ArgType {
     Sample,
@@ -226,7 +227,6 @@ mod common_arg_trees {
         use super::*;
         use crate::prelude::DataEntry;
         use std::collections::hash_map::HashMap;
-        use std::f64::EPSILON;
         use std::fs::File;
         use std::io::Write;
 
@@ -246,7 +246,7 @@ mod common_arg_trees {
 
             fn arg_through(&self, cmd: &mut Command) -> Result<(), ArgError> {
                 if let Self::ByRange(x) = self {
-                    if (x-RANGE_DEFAULT).abs() <= 10.0*EPSILON { //default value
+                    if (x-RANGE_DEFAULT).abs() <= EPS { //default value
                         return Ok(())
                     }
                 }

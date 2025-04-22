@@ -1,4 +1,5 @@
 mod arg_tree;
+mod sample;
 
 pub mod stan_command {
     use crate::prelude::*;
