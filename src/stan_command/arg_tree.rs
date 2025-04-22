@@ -1,4 +1,4 @@
-use std::{ffi::{OsStr, OsString}, process::Command};
+use std::{ffi::{OsStr, OsString}, path::{Path, PathBuf}, process::Command};
 
 mod arg_error {
     use std::{error::Error, fmt::Display};
@@ -107,17 +107,32 @@ pub fn args_combine(name: &str, val: &OsStr) -> OsString {
     res
 }
 
-pub fn verify_file_readable(path: &std::path::Path) -> Result<(), ArgError> {
+pub fn verify_file_readable(path: &Path) -> Result<(), ArgError> {
     std::fs::File::open(path).map(|_|()).map_err(ArgError::FileSystemError)
 }
 
-pub fn verify_file_writeable(path: &std::path::Path) -> Result<(), ArgError> {
+pub fn verify_file_writeable(path: &Path) -> Result<(), ArgError> {
+    if let Some(parten_path) = path.parent() {
+        std::fs::create_dir_all(parten_path).map_err(ArgError::FileSystemError)?;
+    }
     std::fs::OpenOptions::new()
         .create(true)
         .append(true) // 避免 truncate 覆盖
         .open(path)
         .map(|_| ())
         .map_err(ArgError::FileSystemError)
+}
+
+pub fn verify_or_default(path: &Path, default: &str) -> Result<PathBuf, ArgError> {
+    if path.extension().is_none() {
+        let mut path = path.to_path_buf();
+        path.push(default);
+        verify_file_writeable(&path)?;
+        Ok(path)
+    } else {
+        verify_file_writeable(path)?;
+        Ok(path.to_path_buf())
+    }
 }
 
 mod common_arg_trees {
@@ -300,11 +315,11 @@ mod common_arg_trees {
             }
 
             pub fn target_init_by_param_path(&mut self, file: &Path) -> Result<&mut Self, ArgError> {
-                verify_file_writeable(file)?;
-                if let Self::ByValue((p, f)) = self {
-                    *f = file.to_path_buf();
+                let file = verify_or_default(file,"init_params_setup.json")?;
+                if let Self::ByValue((_, f)) = self {
+                    *f = file;
                 } else {
-                    *self = Self::ByValue((HashMap::new(), file.to_path_buf()));
+                    *self = Self::ByValue((HashMap::new(), file));
                 }
                 Ok(self)
             }
@@ -382,7 +397,7 @@ mod common_arg_trees {
                 ArgNumThreads { threads: DEFAULT_THREADS }
             }
     
-            pub fn set_id(&mut self, new_ts: u32) -> &mut Self {
+            pub fn set_num_threads(&mut self, new_ts: u32) -> &mut Self {
                 self.threads = new_ts;
                 self
             }
@@ -463,13 +478,12 @@ mod common_arg_trees {
             }
 
             pub fn target_output_file(&mut self, path: &Path) -> Result<&mut Self, ArgError> {
-                verify_file_writeable(path)?;
-                self.file = path.to_path_buf();
+                self.file = verify_or_default(path, "output.csv")?;
                 Ok(self)
             }
 
             pub fn target_diagnostic_file(&mut self, path: &Path) -> Result<&mut Self, ArgError> {
-                verify_file_writeable(path)?;
+                self.file = verify_or_default(path, "diagnotstic_.csv")?;
                 self.diagnostic_file = path.to_path_buf();
                 Ok(self)
             }
@@ -482,15 +496,14 @@ mod common_arg_trees {
             pub fn set_sig_figs(&mut self, sig_figs: i32) -> Result<&mut Self, ArgError> {
                 if sig_figs < -1 || sig_figs > 18 {
                     return Err(ArgError::BadArgumentValue(
-                        format!("argument output->sig_figs requires 0 <= integer <= 18 or -1, recieved {}",sig_figs).to_string()));
+                        format!("argument output->sig_figs requires 0 <= integer <= 18 or -1, received {}",sig_figs).to_string()));
                 }
                 self.sig_figs = sig_figs;
                 Ok(self)
             }
 
             pub fn target_profile_file(&mut self, path: &Path) -> Result<&mut Self, ArgError> {
-                verify_file_writeable(path)?;
-                self.profile_file = path.to_path_buf();
+                self.profile_file = verify_or_default(path, "profile_.csv")?;
                 Ok(self)
             }
 
