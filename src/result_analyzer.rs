@@ -32,11 +32,11 @@ pub mod stan_result_analyzer {
                     argv: Vec::new(),
                 };
         
-                let file = std::fs::File::open(out_file).map_err(|e| StanError::IoError(e))?;
+                let file = std::fs::File::open(out_file).map_err(StanError::IoError)?;
                 let buf = BufReader::new(file);
         
                 for (i,line) in buf.lines().enumerate() {
-                    let line = line.map_err(|e| StanError::IoError(e))?;
+                    let line = line.map_err(StanError::IoError)?;
                     if line.starts_with("#") {
                         continue;
                     }
@@ -118,7 +118,7 @@ pub mod stan_result_analyzer {
                 };
 
                 for (k, v) in rt.args.into_iter().zip(rt.argv.into_iter()) {
-                    if v.len() == 0 {
+                    if v.is_empty() {
                         panic!("Bad CSV Format: no value for {}", k);
                     }
                     if k == "lp__" {
