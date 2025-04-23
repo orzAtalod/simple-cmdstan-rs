@@ -47,12 +47,12 @@ mod stan_error {
         }
     }
     
-    impl Into<StanError> for std::io::Error {
-        fn into(self) -> StanError {
-            StanError::IoError(self)
+    impl From<std::io::Error> for StanError {
+        fn from(e: std::io::Error) -> Self {
+            StanError::IoError(e)
         }
     }
-    
+
     impl std::error::Error for StanError {}    
 }
 
@@ -80,8 +80,8 @@ pub mod prelude {
 
     // structs
     pub use crate::stan_model::std_stan_model::StdStanModel;
-    pub use crate::stan_command::stan_command::StanCommand;
-    pub use crate::stan_command::stan_command::StanCommandType;
+    pub use crate::stan_command::stan_command_core::StanCommand;
+    pub use crate::stan_command::stan_command_core::StanCommandType;
     pub use crate::data_entries::data_entry::DataEntry;
     pub use crate::data_entries::data_entry::DataEntries;
     pub use crate::data_entries::data_collections::DataCollection;

@@ -234,9 +234,9 @@ mod common_arg_trees {
 
         #[derive(Debug, PartialEq)]
         pub enum ArgInit {
-            ByRange(f64),
-            ByPath(PathBuf),
-            ByValue((HashMap<String, DataEntry>, PathBuf)),
+            Range(f64),
+            Path(PathBuf),
+            ParamValue((HashMap<String, DataEntry>, PathBuf)),
         }
 
         impl ArgThrough for ArgInit {
@@ -245,20 +245,20 @@ mod common_arg_trees {
             }
 
             fn arg_through(&self, cmd: &mut Command) -> Result<(), ArgError> {
-                if let Self::ByRange(x) = self {
+                if let Self::Range(x) = self {
                     if (x-RANGE_DEFAULT).abs() <= EPS { //default value
                         return Ok(())
                     }
                 }
 
                 match self {
-                    Self::ByRange(val) => {
+                    Self::Range(val) => {
                         cmd.arg(format!("init={}",val));
                     }
-                    Self::ByPath(val) => {
+                    Self::Path(val) => {
                         cmd.arg(args_combine("init", val.as_os_str()));
                     }
-                    Self::ByValue((params,file)) => {
+                    Self::ParamValue((params,file)) => {
                         let mut param_init = String::new();
 
                         param_init.push_str("{\n");
@@ -271,15 +271,14 @@ mod common_arg_trees {
                         }
                         param_init.push_str("\n}");
 
-                        let init_path: &Path;
-                        if file.as_os_str().is_empty() {
-                            init_path = &Path::new("init_params_setup.json");
+                        let init_path: &Path = if file.as_os_str().is_empty() {
+                            Path::new("init_params_setup.json")
                         } else {
-                            init_path = &file;
-                        }
+                            file
+                        };
 
-                        let mut file= File::create(init_path).map_err(|e| ArgError::FileSystemError(e))?;
-                        file.write(param_init.as_bytes()).map_err(|e| ArgError::FileSystemError(e))?;
+                        let mut file= File::create(init_path).map_err(ArgError::FileSystemError)?;
+                        file.write(param_init.as_bytes()).map_err( ArgError::FileSystemError)?;
                         cmd.arg(args_combine("init", init_path.as_os_str()));
                     }
                 };
@@ -289,37 +288,37 @@ mod common_arg_trees {
 
         impl ArgInit {
             pub fn new() -> Self {
-                ArgInit::ByRange(RANGE_DEFAULT)
+                ArgInit::Range(RANGE_DEFAULT)
             }
 
             pub fn set_init_by_range(&mut self, r: f64) -> &mut Self {
-                *self = Self::ByRange(r);
+                *self = Self::Range(r);
                 self
             }
 
             pub fn set_init_by_path(&mut self, file: &Path) -> Result<&mut Self, ArgError> {
                 verify_file_readable(file)?;
-                *self = Self::ByPath(file.to_path_buf());
+                *self = Self::Path(file.to_path_buf());
                 Ok(self)
             }
 
             pub fn set_init_by_param<T: Into<DataEntry>>(&mut self, param: &str, val: T) -> &mut Self {
-                if let Self::ByValue((p,_)) = self {
+                if let Self::ParamValue((p,_)) = self {
                     p.insert(param.to_string(), val.into());
                 } else {
                     let mut par = HashMap::new();
                     par.insert(param.to_string(), val.into());
-                    *self = Self::ByValue((par, PathBuf::new()));
+                    *self = Self::ParamValue((par, PathBuf::new()));
                 }
                 self
             }
 
             pub fn target_init_by_param_path(&mut self, file: &Path) -> Result<&mut Self, ArgError> {
                 let file = verify_or_default(file,"init_params_setup.json")?;
-                if let Self::ByValue((_, f)) = self {
+                if let Self::ParamValue((_, f)) = self {
                     *f = file;
                 } else {
-                    *self = Self::ByValue((HashMap::new(), file));
+                    *self = Self::ParamValue((HashMap::new(), file));
                 }
                 Ok(self)
             }
@@ -494,7 +493,7 @@ mod common_arg_trees {
             }
 
             pub fn set_sig_figs(&mut self, sig_figs: i32) -> Result<&mut Self, ArgError> {
-                if sig_figs < -1 || sig_figs > 18 {
+                if !(-1..=18).contains(&sig_figs) {
                     return Err(ArgError::BadArgumentValue(
                         format!("argument output->sig_figs requires 0 <= integer <= 18 or -1, received {}",sig_figs).to_string()));
                 }

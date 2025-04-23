@@ -40,15 +40,18 @@ pub struct ArgSampleHmc {
     pub stepsize_jitter: f64  //[0,1], default:0
 }
 
+#[allow(clippy::approx_constant, reason="the 6.28319 is hard coded in CmdStan")]
+const DEFAULT_ENGINE_STATIC_VAL: f64 = 6.28319;
 #[derive(Debug, Clone)]
 pub enum ArgSampleEngine {
     Static(f64),          //>0, default: 6.28319
     Nuts(u32),            //default, >0, default: 10
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum ArgSampleMetric {
     UnitE,
+    #[default]
     DiagE,  //default
     DenseE,
 }
@@ -107,15 +110,9 @@ impl Default for ArgSampleEngine {
     }
 }
 
-impl Default for ArgSampleMetric {
-    fn default() -> Self {
-        ArgSampleMetric::DiagE
-    }
-}
-
 impl ArgSampleAdapt {
     fn is_default(&self) -> bool {
-        self.engaged == true             &&
+        self.engaged                     &&
         (self.gamma-0.05).abs() <= EPS   &&
         (self.delta-0.8).abs() <= EPS    &&
         (self.kappa-0.75).abs() <= EPS   &&
@@ -123,7 +120,7 @@ impl ArgSampleAdapt {
         self.init_buffer == 75           &&
         self.term_buffer == 50           &&
         self.window == 25                &&
-        self.save_metric == false
+        !self.save_metric
     }
 }
 
@@ -157,10 +154,7 @@ impl ArgSampleEngine {
 
 impl ArgSampleMetric {
     fn is_default(&self) -> bool {
-        match self {
-            Self::DiagE => true,
-            _ => false,
-        }
+        matches!(self, Self::DiagE)
     }
 }
 
@@ -185,7 +179,7 @@ impl ArgThrough for ArgSample {
         }
         if !self.adapt.is_default() {
             cmd.arg("adapt");
-            if self.adapt.engaged != true {
+            if !self.adapt.engaged {
                 cmd.arg("engaged=false");
             }
             if (self.adapt.gamma-0.05).abs() > EPS {
@@ -209,7 +203,7 @@ impl ArgThrough for ArgSample {
             if self.adapt.window != 25 {
                 cmd.arg(format!("window={}",self.adapt.window));
             }
-            if self.adapt.save_metric != false {
+            if self.adapt.save_metric {
                 cmd.arg("save_metric=true");
             }
         }
@@ -223,7 +217,7 @@ impl ArgThrough for ArgSample {
                     match hmc.engine {
                         ArgSampleEngine::Static(x) => {
                             cmd.arg("engine=static");
-                            if (x-6.28319).abs() > EPS {
+                            if (x-DEFAULT_ENGINE_STATIC_VAL).abs() > EPS {
                                 cmd.arg(format!("int_time={x}"));
                             }
                         }
@@ -369,7 +363,7 @@ impl ArgSampleAdapt {
     }
 
     pub fn set_delta(&mut self, delta: f64) -> Result<&mut Self, ArgError> {
-        if delta>=0.1 && delta<=1.0 {
+        if (0.1..=1.0).contains(&delta) {
             self.delta = delta;
             Ok(self)
         } else {
@@ -531,7 +525,7 @@ impl ArgSampleHmc {
     }
 
     pub fn set_stepsize_jitter(&mut self, stepsize_jitter: f64) -> Result<&mut Self, ArgError> {
-        if stepsize_jitter>=0.0 && stepsize_jitter<=1.0 {
+        if (0.0..=1.0).contains(&stepsize_jitter) {
             self.stepsize_jitter = stepsize_jitter;
             Ok(self)
         } else {
@@ -550,7 +544,7 @@ impl ArgSampleEngine {
     }
 
     pub fn set_static_engine(&mut self) -> &mut Self {
-        *self = Self::Static(6.28319);
+        *self = Self::Static(DEFAULT_ENGINE_STATIC_VAL);
         self
     }
 

@@ -1,7 +1,7 @@
 mod arg_tree;
 mod sample;
 
-pub mod stan_command {
+pub mod stan_command_core {
     use crate::prelude::*;
     use std::collections::HashMap;
     use std::process::Command;
@@ -84,7 +84,7 @@ pub mod stan_command {
                 }
             }
 
-            let out_value = command.output().map_err(|e| StanError::CompileIOError(e))?;
+            let out_value = command.output().map_err( StanError::CompileIOError)?;
             if !out_value.status.success() {
                 return Err(StanError::CompileError("Stan command failed".to_string()).into());
             }
