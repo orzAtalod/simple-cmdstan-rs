@@ -350,7 +350,7 @@ mod stan_data_test {
     use crate::prelude::*;
     use std::fs::File;
     use std::io::{Write, Error};
-    use num::{complex, Complex};
+    use num::Complex;
 
     fn dump_stan_json<T:StanData>(data: &T, path: &str) -> Result<(), Error> {
         let mut output = File::create(path)?;

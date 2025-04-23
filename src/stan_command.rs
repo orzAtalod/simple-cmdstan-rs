@@ -140,6 +140,6 @@ mod test_command {
         stm.set_data_path("examples\\bernoulli\\bernoulli.data.json");
         stm.complie().unwrap();
         let mut cmd = StanCommand::new(&stm, StanCommandType::Sample).unwrap();
-        let res = cmd.execute(SampleResultAnalyzer {}).unwrap();
+        let _ = cmd.execute(SampleResultAnalyzer {}).unwrap();
     }
 }

@@ -304,7 +304,7 @@ mod common_arg_trees {
             }
 
             pub fn set_init_by_param<T: Into<DataEntry>>(&mut self, param: &str, val: T) -> &mut Self {
-                if let Self::ByValue((p,f)) = self {
+                if let Self::ByValue((p,_)) = self {
                     p.insert(param.to_string(), val.into());
                 } else {
                     let mut par = HashMap::new();

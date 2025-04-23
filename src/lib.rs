@@ -58,12 +58,11 @@ mod stan_error {
 
 pub use stan_interface::stan_init;
 mod stan_interface {
-    use std::env::{self, set_current_dir};
-    use std::path::{Path, PathBuf};
+    use std::path::Path;
     pub const STAN_HOME_KEY: &str = "STAN_HOME_RS";
     pub fn stan_init(stan_home_path: &Path) -> Result<(), std::io::Error> {
         unsafe {
-            env::set_var(STAN_HOME_KEY, stan_home_path.as_os_str());
+            std::env::set_var(STAN_HOME_KEY, stan_home_path.as_os_str());
         }
         Ok(())
     }
