@@ -1,5 +1,8 @@
+#[macro_use]
 mod arg_tree;
 mod sample;
+mod optimize;
+mod common_arg;
 
 pub mod stan_command_core {
     use crate::prelude::*;
