@@ -1,4 +1,4 @@
-use std::{ffi::{OsStr, OsString}, path::{Path, PathBuf}, process::Command};
+use std::{ffi::{OsStr, OsString}, path::{Path, PathBuf}, process::Command, string};
 pub const EPS: f64 = f64::EPSILON * 10.0;
 use paste::paste;
 
@@ -126,12 +126,13 @@ macro_rules! ImplDefault {
 macro_rules! default_setter {
     ($(<$doc:literal>)?($member:ident:$member_type:ty;)$(;)?) => { 
         paste! {
-            $(#[doc=concat!($doc)])?
+            $(#[doc=$doc])?
             pub fn [<set_ $member>](&mut self, $member: $member_type) -> &mut Self {
                 self.$member = $member;
                 self
             }
 
+            $(#[doc=$doc])?
             pub fn [<with_ $member>](mut self, $member: $member_type) -> Self {
                 self.$member = $member;
                 self
@@ -141,6 +142,9 @@ macro_rules! default_setter {
     
     ($(<$doc:literal>)?($member:ident:$member_type:ty; $($expect:expr => $else_val: expr),+)$(;)?) => { 
         paste! {
+            $(#[doc=$doc])?
+            #[doc="# Errors"]
+            $(#[doc=concat!("when", stringify!($expect), "returns BadArgumentValue", stringify!($else_val))])+
             pub fn [<set_ $member>](&mut self, $member: $member_type) -> Result<&mut Self, ArgError> {
                 $(if $expect {
                     return Err(ArgError::BadArgumentValue($else_val))
@@ -149,6 +153,9 @@ macro_rules! default_setter {
                 Ok(self)
             }
 
+            $(#[doc=$doc])?
+            #[doc="# Errors"]
+            $(#[doc=concat!("when", stringify!($expect), "returns BadArgumentValue", stringify!($else_val))])+
             pub fn [<with_ $member>](mut self, $member: $member_type) -> Result<Self, ArgError> {
                 $(if $expect {
                     return Err(ArgError::BadArgumentValue($else_val))
@@ -160,38 +167,12 @@ macro_rules! default_setter {
     };
 
     ($(<$doc:literal>)?($member:ident:$member_type:ty;); $($(<$docs:literal>)?($members:ident:$member_types:ty; $($expects:expr => $else_vals:expr),*));+$(;)?) => { 
-        paste! {
-            pub fn [<set_ $member>](&mut self, $member: $member_type) -> &mut Self {
-                self.$member = $member;
-                self
-            }
-
-            pub fn [<with_ $member>](mut self, $member: $member_type) -> Self {
-                self.$member = $member;
-                self
-            }
-        }
+        default_setter!{$(<$doc>)?($member:$member_type;)}
         default_setter!{$($(<$docs>)?($members:$member_types; $($expects => $else_vals),*));+}
     };
 
-    ($(<$doc:literal>)?($member:ident:$member_type:ty; $($expect:expr => $else_val: expr),+); $($(<$docs:literal>)?($members:ident:$member_types:ty; $($expects:expr => $else_vals: expr),*));+$(;)?) => { 
-        paste! {
-            pub fn [<set_ $member>](&mut self, $member: $member_type) -> Result<&mut Self, ArgError> {
-                $(if $expect {
-                    return Err(ArgError::BadArgumentValue($else_val))
-                });*
-                self.$member = $member;
-                Ok(self)
-            }
-
-            pub fn [<with_ $member>](mut self, $member: $member_type) -> Result<Self, ArgError> {
-                $(if $expect {
-                    return Err(ArgError::BadArgumentValue($else_val))
-                });*
-                self.$member = $member;
-                Ok(self)
-            }
-        } 
+    ($(<$doc:literal>)?($member:ident:$member_type:ty; $($expect:expr => $else_val:expr),+); $($(<$docs:literal>)?($members:ident:$member_types:ty; $($expects:expr => $else_vals: expr),*));+$(;)?) => { 
+        default_setter!{$(<$doc>)?($member:$member_type; $($expect => $else_val),+)}
         default_setter!{$($(<$docs>)?($members:$member_types; $($expects => $else_vals),*));+}
     };
 }
@@ -218,4 +199,11 @@ impl Foo {
         (c4:i32; c4<0 => "Sample: c3 cannot below zero".to_string(), 
             c4>18 => "Sample: c3 cannot greater than 18".to_string());
     }
+}
+
+#[test]
+fn test_func() {
+    let mut x = Foo { c1:0, c2:0, c3: 0.0, c4:0 };
+    x.set_c3(1.0).unwrap();
+    x.set_c1(111);
 }
