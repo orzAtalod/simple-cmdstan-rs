@@ -233,7 +233,6 @@ macro_rules! DefArgTree {
     };
 }
 
-pub use arg_path::{ArgPath, EMPTY_ARG_PATH};
 mod arg_path {
     use super::*;
     #[derive(Debug, Clone, PartialEq)]
