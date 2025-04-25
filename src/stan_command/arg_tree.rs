@@ -248,10 +248,14 @@ mod test_modd {
     }}
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum ArgPath {
-    Borrowed(&'static str),
-    Owned(PathBuf),
-}
+pub use arg_path::{ArgPath, EMPTY_ARG_PATH};
+mod arg_path {
+    use super::*;
+    #[derive(Debug, Clone, PartialEq)]
+    pub enum ArgPath {
+        Borrowed(&'static str),
+        Owned(PathBuf),
+    }
 
-pub const EMPTY_ARG_PATH: ArgPath = ArgPath::Borrowed("");
+    pub const EMPTY_ARG_PATH: ArgPath = ArgPath::Borrowed("");
+}

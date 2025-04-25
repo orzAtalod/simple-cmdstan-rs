@@ -108,9 +108,3 @@ impl ArgThrough for ArgOptimize {
         Ok(())
     }
 }
-
-#[test]
-fn testss() {
-    let mut x = Foo { c1:1, c2:2, c3:3.0, c4:4 };
-    x.set_c3(2.3).unwrap();
-}
