@@ -198,7 +198,7 @@ macro_rules! DefArgTree {
                     stringify!($default),
                     "`"
                 )]
-                $arg_name: $arg_type
+                pub $arg_name: $arg_type
             ),+
         }
 
