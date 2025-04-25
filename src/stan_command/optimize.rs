@@ -217,7 +217,7 @@ impl ArgOptimizeAlgorithm {
 
     /// set the amount of history to keep for L-BFGS
     /// 
-    /// - if the algorithm is Bfgs, it will be transformed to LBfgs with the given history_size; (with a clone)
+    /// - if the algorithm is Bfgs, it will be transformed to LBfgs with the given history_size;
     /// - if the algorithm is LBfgs, the history_size will be changed;
     /// - if the algorithm is Newton, switch to Bfgs with the given input param; (with a clone)
     /// 
@@ -230,7 +230,7 @@ impl ArgOptimizeAlgorithm {
         }
         match self {
             Self::Bfgs(b) => {
-                *self = Self::LBfgs(b.clone(), history_size)
+                *self = Self::LBfgs(std::mem::take(b), history_size)
             },
             Self::LBfgs(_, h) => {
                 *h = history_size
@@ -244,7 +244,7 @@ impl ArgOptimizeAlgorithm {
 
     /// set the amount of history to keep for L-BFGS, consume self and return a new one
     /// 
-    /// - if the algorithm is Bfgs, it will be transformed to LBfgs with the given history_size; (with a clone)
+    /// - if the algorithm is Bfgs, it will be transformed to LBfgs with the given history_size;
     /// - if the algorithm is LBfgs, the history_size will be changed;
     /// - if the algorithm is Newton, switch to Bfgs with the given input param; (with a clone)
     /// 
@@ -264,12 +264,10 @@ impl ArgOptimizeAlgorithm {
 
     /// drop the history_size of the params, turning self to bfgs
     /// 
-    /// Clone when the algorithm is Self::LBfgs
-    /// 
     /// if self is Self::Newton, this function will give it a default bfgs arguments
     pub fn drop_history_size(&mut self) -> &mut Self {
         match self {
-            Self::LBfgs(b, _) => *self = Self::Bfgs(b.clone()),
+            Self::LBfgs(b, _) => *self = Self::Bfgs(std::mem::take(b)),
             Self::Newton => *self = Self::Bfgs(ArgOptimizeBfgs::ARG_DEFAULT),
             _ => {},
         }
