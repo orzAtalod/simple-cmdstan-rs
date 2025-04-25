@@ -248,38 +248,6 @@ mod test_modd {
     }}
 }
 
-//test
-pub struct Foo {
-    pub c1: i32,
-    pub c2: u32,
-    pub c3: f64,
-    pub c4: i32,
-}
-
-impl Foo {
-    default_setter!{
-        <"111">
-        (c1:i32;);
-        <"222">
-        (c3:f64; c3<0.0 => "Sample: c3 cannot below zero".to_string(), 
-            c3>18.0 => "Sample: c3 cannot greater than 18".to_string());
-    }
-
-    default_setter!{
-        (c2:u32; c2==0 => "Sample: c2 cannot be zero".to_string());
-        (c4:i32; c4<0 => "Sample: c3 cannot below zero".to_string(), 
-            c4>18 => "Sample: c3 cannot greater than 18".to_string());
-    }
-}
-
-
-#[test]
-#[should_panic]
-fn test_func() {
-    let mut x = Foo { c1:0, c2:0, c3: 0.0, c4:0 };
-    x.set_c3(-13.0).unwrap();
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum ArgPath {
     Borrowed(&'static str),
