@@ -233,21 +233,6 @@ macro_rules! DefArgTree {
     };
 }
 
-mod test_modd {
-    use super::*;
-    DefArgTree!{<"quq">QuQ => {
-        theone:i32 = 3,
-        thetwo:i32 = 3,
-        thethree:ArgPath = EMPTY_ARG_PATH,
-    }}
-
-    DefArgTree!{QwQ = Self::TheOne(1) => {
-        TheOne(i32),
-        ATwo(i32, u32),
-        TheThree
-    }}
-}
-
 pub use arg_path::{ArgPath, EMPTY_ARG_PATH};
 mod arg_path {
     use super::*;
