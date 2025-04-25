@@ -1,6 +1,6 @@
 use super::arg_tree::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ArgOptimize {
     pub algorithm: ArgOptimizeAlgorithm,
     pub jacobian: bool,         //defualt: false
@@ -8,14 +8,14 @@ pub struct ArgOptimize {
     pub save_iterations: bool,  //default: false
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ArgOptimizeAlgorithm {
     Bfgs(ArgOptimizeBfgs),
     LBfgs(ArgOptimizeBfgs,u32),  //default, u32(history_size)>0, default: 5
     Newton,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ArgOptimizeBfgs {
     pub init_alpha: f64,    //>0, default: 0.001
     pub tol_obj: f64,       //>0, default: 1e-12
@@ -107,4 +107,10 @@ impl ArgThrough for ArgOptimize {
         arg_into!(self.{jacobian, iter, save_iterations} in Self >> cmd);
         Ok(())
     }
+}
+
+#[test]
+fn testss() {
+    let mut x = Foo { c1:1, c2:2, c3:3.0, c4:4 };
+    x.set_c3(2.3).unwrap();
 }

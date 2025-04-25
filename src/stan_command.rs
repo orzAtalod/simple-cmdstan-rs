@@ -1,5 +1,5 @@
 #[macro_use]
-mod arg_tree;
+pub mod arg_tree;
 mod sample;
 mod optimize;
 mod common_arg;
@@ -34,8 +34,11 @@ pub mod stan_command_core {
         }
     
         /// add a command line argument to the command.
+        /// 
         /// args: like "data", "output", "random", etc.
+        /// 
         /// argv: like "file=data.json", "seed=121", etc.
+        /// 
         pub fn add_args(&mut self, args: &str, argv: Option<&str>) -> &mut Self {
             let args = args.trim().to_string();
             let argv = argv.map(|s| s.trim().to_string());

@@ -1,6 +1,6 @@
-use std::{ffi::{OsStr, OsString}, path::{Path, PathBuf}, process::Command, string};
+use std::{ffi::{OsStr, OsString}, path::{Path, PathBuf}, process::Command};
 pub const EPS: f64 = f64::EPSILON * 10.0;
-use paste::paste;
+pub use paste::paste;
 
 mod arg_error {
     use std::{error::Error, fmt::Display};
@@ -93,9 +93,11 @@ pub fn arg_if_not_default_f64(cmd: &mut Command, arg_name: &str, arg_val: f64, a
     }
 }
 
-pub trait WithDefaultArg {
+pub trait WithDefaultArg : PartialEq+Sized {
     const ARG_DEFAULT: Self;
-    fn is_default(&self) -> bool;
+    fn is_default(&self) -> bool {
+        *self == Self::ARG_DEFAULT
+    }
 }
 
 macro_rules! arg_into (
@@ -142,47 +144,116 @@ macro_rules! default_setter {
     
     ($(<$doc:literal>)?($member:ident:$member_type:ty; $($expect:expr => $else_val: expr),+)$(;)?) => { 
         paste! {
-            $(#[doc=$doc])?
-            #[doc="# Errors"]
-            $(#[doc=concat!("when", stringify!($expect), "returns BadArgumentValue", stringify!($else_val))])+
+            #[doc=concat!(
+                $($doc,"\n\n",)?
+                "# Errors\n\n"
+                $(,"- when `", stringify!($expect), "` returns BadArgumentValue `", stringify!($else_val), "`\n")+
+            )]
             pub fn [<set_ $member>](&mut self, $member: $member_type) -> Result<&mut Self, ArgError> {
                 $(if $expect {
-                    return Err(ArgError::BadArgumentValue($else_val))
-                });*
+                    return Err(ArgError::BadArgumentValue($else_val));
+                })*
                 self.$member = $member;
                 Ok(self)
             }
 
-            $(#[doc=$doc])?
-            #[doc="# Errors"]
-            $(#[doc=concat!("when", stringify!($expect), "returns BadArgumentValue", stringify!($else_val))])+
+            #[doc=concat!(
+                $($doc,"\n\n",)?
+                "# Errors\n\n"
+                $(,"- when `", stringify!($expect), "` returns BadArgumentValue `", stringify!($else_val), "`\n")+
+            )]
             pub fn [<with_ $member>](mut self, $member: $member_type) -> Result<Self, ArgError> {
                 $(if $expect {
-                    return Err(ArgError::BadArgumentValue($else_val))
-                });*
+                    return Err(ArgError::BadArgumentValue($else_val));
+                })*
                 self.$member = $member;
                 Ok(self)
             }
         } 
     };
 
-    ($(<$doc:literal>)?($member:ident:$member_type:ty;); $($(<$docs:literal>)?($members:ident:$member_types:ty; $($expects:expr => $else_vals:expr),*));+$(;)?) => { 
+    ($(<$doc:literal>)?($member:ident:$member_type:ty;);
+        $($(<$docs:literal>)?($members:ident:$member_types:ty; $($expects:expr => $else_vals:expr),*));+$(;)?) => { 
         default_setter!{$(<$doc>)?($member:$member_type;)}
         default_setter!{$($(<$docs>)?($members:$member_types; $($expects => $else_vals),*));+}
     };
 
-    ($(<$doc:literal>)?($member:ident:$member_type:ty; $($expect:expr => $else_val:expr),+); $($(<$docs:literal>)?($members:ident:$member_types:ty; $($expects:expr => $else_vals: expr),*));+$(;)?) => { 
+    ($(<$doc:literal>)?($member:ident:$member_type:ty; $($expect:expr => $else_val:expr),+);
+        $($(<$docs:literal>)?($members:ident:$member_types:ty; $($expects:expr => $else_vals: expr),*));+$(;)?) => { 
         default_setter!{$(<$doc>)?($member:$member_type; $($expect => $else_val),+)}
         default_setter!{$($(<$docs>)?($members:$member_types; $($expects => $else_vals),*));+}
     };
 }
 
+macro_rules! DefArgTree {
+    //struct
+    ($(<$name_doc:literal>)?$name:ident => {$($(<$arg_doc:literal>)?$arg_name:ident:$arg_type:ty = $default:expr),+$(,)?}) => {
+        $(#[doc=$name_doc])?
+        #[derive(Debug, Clone, PartialEq)]
+        pub struct $name {
+            $(
+                #[doc=concat!(
+                    $($arg_doc,"\n\n",)?
+                    "Default:`",
+                    stringify!($default),
+                    "`"
+                )]
+                $arg_name: $arg_type
+            ),+
+        }
+
+        impl WithDefaultArg for $name {
+            const ARG_DEFAULT: Self = Self {
+                $(
+                    $arg_name: $default
+                ),+
+            };
+        }
+    };
+
+    //enum
+    ($(<$name_doc:literal>)?$name:ident = $default:expr => {$($(<$arg_doc:literal>)?$arg_name:ident$(($($arg_type:ty),+))?),+$(,)?}) => {
+        #[doc=concat!(
+            $($name_doc,"\n\n",)?
+            "Default:`",
+            stringify!($default),
+            "`"
+        )]
+        #[derive(Debug, Clone, PartialEq)]
+        pub enum $name {
+            $(
+                $(#[doc=$arg_doc])?
+                $arg_name$(($($arg_type),+))?
+            ),+
+        }
+
+        impl WithDefaultArg for $name {
+            const ARG_DEFAULT: Self = $default;
+        }
+    };
+}
+
+mod test_modd {
+    use super::*;
+    DefArgTree!{<"quq">QuQ => {
+        theone:i32 = 3,
+        thetwo:i32 = 3,
+        thethree:ArgPath = EMPTY_ARG_PATH,
+    }}
+
+    DefArgTree!{QwQ = Self::TheOne(1) => {
+        TheOne(i32),
+        ATwo(i32, u32),
+        TheThree
+    }}
+}
+
 //test
-struct Foo {
-    c1: i32,
-    c2: u32,
-    c3: f64,
-    c4: i32,
+pub struct Foo {
+    pub c1: i32,
+    pub c2: u32,
+    pub c3: f64,
+    pub c4: i32,
 }
 
 impl Foo {
@@ -201,9 +272,18 @@ impl Foo {
     }
 }
 
+
 #[test]
+#[should_panic]
 fn test_func() {
     let mut x = Foo { c1:0, c2:0, c3: 0.0, c4:0 };
-    x.set_c3(1.0).unwrap();
-    x.set_c1(111);
+    x.set_c3(-13.0).unwrap();
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ArgPath {
+    Borrowed(&'static str),
+    Owned(PathBuf),
+}
+
+pub const EMPTY_ARG_PATH: ArgPath = ArgPath::Borrowed("");
