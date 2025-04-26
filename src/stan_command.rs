@@ -3,6 +3,7 @@ pub mod arg_tree;
 mod sample;
 mod optimize;
 mod common_arg;
+mod variational;
 
 pub mod stan_command_core {
     use crate::prelude::*;
