@@ -4,6 +4,7 @@ mod sample;
 mod optimize;
 mod common_arg;
 mod variational;
+mod diagnose;
 
 pub mod stan_command_core {
     use crate::prelude::*;
