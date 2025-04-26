@@ -21,7 +21,7 @@ impl ArgThrough for ArgDiagnose {
         match self {
             Self::Gradient(g) => {
                 cmd.arg("test=gradient");
-                arg_into!(g.{epsilon, error} in ArgDiagnoseGradient >> cmd)
+                arg_into!(g.{epsilon, error} in ArgDiagnoseGradient >> cmd);
             }
         }
         Ok(())
