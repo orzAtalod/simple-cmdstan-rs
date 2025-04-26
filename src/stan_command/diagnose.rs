@@ -1,27 +1,3 @@
-/*
-diagnose
-  Model diagnostics
-  Valid subarguments: test
-
-  test=<list element>
-    Diagnostic test
-    Valid values: gradient
-    Defaults to gradient
-
-    gradient
-      Check model gradient against finite differences
-      Valid subarguments: epsilon, error
-
-      epsilon=<double>
-        Finite difference step size
-        Valid values: 0 < epsilon
-        Defaults to 1e-6
-
-      error=<double>
-        Error threshold
-        Valid values: 0 < error
-        Defaults to 1e-6
- */
 use super::arg_tree::*;
 
 DefArgTree!{<"Model diagnostics">ArgDiagnose = Self::Gradient(ArgDiagnoseGradient::ARG_DEFAULT) => {
