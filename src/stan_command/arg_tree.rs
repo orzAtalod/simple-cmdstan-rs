@@ -81,8 +81,8 @@ pub fn verify_or_default(path: &Path, default: &str) -> Result<PathBuf, ArgError
     }
 }
 
-pub fn arg_if_not_default<T:std::fmt::Display+PartialEq>(cmd: &mut Command, arg_name: &str, arg_val: T, arg_default: T) {
-    if arg_val != arg_default {
+pub fn arg_if_not_default<T:std::fmt::Display+PartialEq>(cmd: &mut Command, arg_name: &str, arg_val: &T, arg_default: T) {
+    if *arg_val != arg_default {
         cmd.arg(format!("{}={}",arg_name, arg_val));
     }
 }
@@ -102,7 +102,7 @@ pub trait WithDefaultArg : PartialEq+Sized {
 
 macro_rules! arg_into (
     ($struct_name:ident.{$($member_name:ident),+} in $struct_type:ty >> $command:expr) => {
-        $(arg_if_not_default($command, stringify!($member_name), $struct_name.$member_name, <$struct_type>::ARG_DEFAULT.$member_name);)+
+        $(arg_if_not_default($command, stringify!($member_name), &$struct_name.$member_name, <$struct_type>::ARG_DEFAULT.$member_name);)+
     };
 );
 
@@ -235,11 +235,69 @@ macro_rules! DefArgTree {
 
 mod arg_path {
     use super::*;
+    use std::fmt::Display;
     #[derive(Debug, Clone, PartialEq)]
     pub enum ArgPath {
         Borrowed(&'static str),
         Owned(PathBuf),
     }
 
-    pub const EMPTY_ARG_PATH: ArgPath = ArgPath::Borrowed("");
+    impl WithDefaultArg for ArgPath {
+        const ARG_DEFAULT: Self = Self::Borrowed("");
+    }
+
+    impl Display for ArgPath {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Self::Borrowed(path) => write!(f, "{}", *path),
+                Self::Owned(path) => write!(f, "{}", path.to_string_lossy())
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq)]
+    pub enum ArgWritablePath {
+        Borrowed(&'static str),
+        Owned(PathBuf),
+    }
+
+    impl WithDefaultArg for ArgWritablePath {
+        const ARG_DEFAULT: Self = Self::Borrowed("");
+    }
+
+    impl Display for ArgWritablePath {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Self::Borrowed(path) => write!(f, "{}", *path),
+                Self::Owned(path) => write!(f, "{}", path.to_string_lossy())
+            }
+        }
+    }
+
+
+    #[derive(Debug, Clone, PartialEq)]
+    pub enum ArgReadablePath {
+        Borrowed(&'static str),
+        Owned(PathBuf),
+    }
+
+    impl WithDefaultArg for ArgReadablePath {
+        const ARG_DEFAULT: Self = Self::Borrowed("");
+    }
+
+    impl Display for ArgReadablePath {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Self::Borrowed(path) => write!(f, "{}", *path),
+                Self::Owned(path) => write!(f, "{}", path.to_string_lossy())
+            }
+        }
+    }
+
+    trait AsFilePath {
+        fn get_path(&self) -> OsString;
+    }
+
 }
+
+pub use arg_path::{ArgPath, ArgWritablePath, ArgReadablePath};
