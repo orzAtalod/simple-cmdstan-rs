@@ -29,6 +29,8 @@ mod arg_error {
 
 pub use arg_error::ArgError;
 
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ArgType {
     Sample,
     Optimize,
