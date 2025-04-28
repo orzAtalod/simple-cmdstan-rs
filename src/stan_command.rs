@@ -8,6 +8,7 @@ mod diagnose;
 mod generate_quantities;
 mod pathfinder;
 mod log_prob;
+mod laplace;
 
 pub mod stan_command_core {
     use crate::prelude::*;
