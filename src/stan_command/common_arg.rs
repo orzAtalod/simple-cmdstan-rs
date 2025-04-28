@@ -33,41 +33,63 @@ impl<T:ArgThrough> WithCommonArgs<T> {
     pub fn new(root: T) -> Self {
         Self {
             root,
-            id: ArgID::new(),
-            data: ArgData::new(),
-            init: ArgInit::new(),
-            random: ArgRandom::new(),
-            output: ArgOutput::new(),
-            num_threads: ArgNumThreads::new(),
+            id: ArgID::ARG_DEFAULT,
+            data: ArgData::ARG_DEFAULT,
+            init: ArgInit::ARG_DEFAULT,
+            random: ArgRandom::ARG_DEFAULT,
+            output: ArgOutput::ARG_DEFAULT,
+            num_threads: ArgNumThreads::ARG_DEFAULT,
         }
     }
+}
+
+impl<T:PartialEq+ArgThrough> PartialEq for WithCommonArgs<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.root == other.root &&
+        self.id == other.id &&
+        self.data == other.data &&
+        self.init == other.init &&
+        self.random == other.random &&
+        self.output == other.output &&
+        self.num_threads == other.num_threads
+    }
+}
+
+impl<T:ArgThrough+WithDefaultArg> WithDefaultArg for WithCommonArgs<T> {
+    const ARG_DEFAULT: Self = Self {
+        root: T::ARG_DEFAULT,
+        id: ArgID::ARG_DEFAULT,
+        data: ArgData::ARG_DEFAULT,
+        init: ArgInit::ARG_DEFAULT,
+        random: ArgRandom::ARG_DEFAULT,
+        output: ArgOutput::ARG_DEFAULT,
+        num_threads: ArgNumThreads::ARG_DEFAULT,
+    };
 }
 
 impl<T:ArgThrough+Default> Default for WithCommonArgs<T> {
     fn default() -> Self {
         Self {
             root: T::default(),
-            id: ArgID::new(),
-            data: ArgData::new(),
-            init: ArgInit::new(),
-            random: ArgRandom::new(),
-            output: ArgOutput::new(),
-            num_threads: ArgNumThreads::new(),
+            id: ArgID::ARG_DEFAULT,
+            data: ArgData::ARG_DEFAULT,
+            init: ArgInit::ARG_DEFAULT,
+            random: ArgRandom::ARG_DEFAULT,
+            output: ArgOutput::ARG_DEFAULT,
+            num_threads: ArgNumThreads::ARG_DEFAULT,
         }
     }
 }
 
 mod common_arg_trees {
-    use std::path::{Path, PathBuf};
+    use std::path::Path;
     use super::*;
 
     mod arg_id {
         use super::*;
-        const DEFAULT_ID: u32 = 1;
-        #[derive(Debug, PartialEq, Eq)]
-        pub struct ArgID {
-            id: u32,
-        }
+        DefArgTree!{<"Unique process identifier">ArgID => {
+            <"Unique process identifier">id: u32 = 1,
+        }}
     
         impl ArgThrough for ArgID {
             fn arg_type(&self) -> Result<ArgType, ArgError> {
@@ -75,25 +97,18 @@ mod common_arg_trees {
             }
     
             fn arg_through(&self, cmd: &mut Command) -> Result<(), ArgError> {
-                if self.id!=DEFAULT_ID { cmd.arg(format!("id={}", self.id)); }
+                arg_into!(self.{id} in Self >> cmd);
                 Ok(())
             }
         }
     
         impl ArgID {
             pub fn new() -> ArgID {
-                ArgID{ id: DEFAULT_ID }
+                Self::ARG_DEFAULT
             }
-    
-            pub fn set_id(&mut self, new_id: u32) -> &mut Self {
-                self.id = new_id;
-                self
-            }
-        }
-    
-        impl Default for ArgID {
-            fn default() -> Self {
-                Self::new()
+
+            default_setter!{
+                <"Unique process identifier">(id:u32;);
             }
         }
     }
@@ -101,20 +116,19 @@ mod common_arg_trees {
 
     mod arg_data {
         use super::*;
-        #[derive(Debug, PartialEq, Eq)]
-        pub struct ArgData {
-            file: PathBuf,
-        }
+        DefArgTree!{<"Input data options">ArgData => {
+            <"Input data file">file: ArgReadablePath = ArgReadablePath::ARG_DEFAULT,
+        }}
     
         impl ArgThrough for ArgData {
             fn arg_type(&self) -> Result<ArgType, ArgError> {
                 Err(ArgError::NotValidArgTreeType("ArgData is not a valid root arg".to_string()))
             }
     
-            fn arg_through(&self, cmd: &mut Command) -> Result<(), ArgError> {
-                if !self.path_is_empty() {
+            fn arg_through(&self, cmd: &mut Command) -> Result<(), ArgError> {                
+                if self.file != ArgReadablePath::ARG_DEFAULT {
                     cmd.arg("data");
-                    cmd.arg(args_combine("file", self.file.as_os_str()));
+                    arg_into!(self.{file} in Self >> cmd);
                 }
                 Ok(())
             }
@@ -122,23 +136,11 @@ mod common_arg_trees {
     
         impl ArgData {
             pub fn new() -> ArgData {
-                Self{ file: PathBuf::new() }
+                Self::ARG_DEFAULT
             }
     
-            pub fn set_data_path(&mut self, path: &Path) -> Result<&mut Self, ArgError> {
-                verify_file_readable(path)?;
-                self.file = path.to_path_buf();
-                Ok(self)
-            }
-    
-            pub fn path_is_empty(&self) -> bool {
-                self.file.as_os_str().is_empty()
-            }
-        }
-    
-        impl Default for ArgData {
-            fn default() -> Self {
-                Self::new()
+            default_setter!{
+                <"Input data file">(file:ArgReadablePath;);
             }
         }
     }
@@ -151,13 +153,11 @@ mod common_arg_trees {
         use std::fs::File;
         use std::io::Write;
 
-        const RANGE_DEFAULT: f64 = 2.0;
-
         #[derive(Debug, PartialEq)]
         pub enum ArgInit {
             Range(f64),
-            Path(PathBuf),
-            ParamValue((HashMap<String, DataEntry>, PathBuf)),
+            Path(ArgReadablePath),
+            ParamValue((HashMap<String, DataEntry>, ArgWritablePath)),
         }
 
         impl ArgThrough for ArgInit {
@@ -166,10 +166,8 @@ mod common_arg_trees {
             }
 
             fn arg_through(&self, cmd: &mut Command) -> Result<(), ArgError> {
-                if let Self::Range(x) = self {
-                    if (x-RANGE_DEFAULT).abs() <= EPS { //default value
-                        return Ok(())
-                    }
+                if self.is_default() {
+                    return Ok(());
                 }
 
                 match self {
@@ -177,7 +175,7 @@ mod common_arg_trees {
                         cmd.arg(format!("init={}",val));
                     }
                     Self::Path(val) => {
-                        cmd.arg(args_combine("init", val.as_os_str()));
+                        cmd.arg(format!("init={}",val));
                     }
                     Self::ParamValue((params,file)) => {
                         let mut param_init = String::new();
@@ -192,10 +190,9 @@ mod common_arg_trees {
                         }
                         param_init.push_str("\n}");
 
-                        let init_path: &Path = if file.as_os_str().is_empty() {
-                            Path::new("init_params_setup.json")
-                        } else {
-                            file
+                        let init_path: &Path = match file {
+                            ArgWritablePath::Borrowed(p) => Path::new(p),
+                            ArgWritablePath::Owned(p) => p,
                         };
 
                         let mut file= File::create(init_path).map_err(ArgError::FileSystemError)?;
@@ -207,9 +204,13 @@ mod common_arg_trees {
             }
         }
 
+        impl WithDefaultArg for ArgInit {
+            const ARG_DEFAULT: Self = Self::Range(2.0);
+        }
+
         impl ArgInit {
             pub fn new() -> Self {
-                ArgInit::Range(RANGE_DEFAULT)
+                Self::ARG_DEFAULT
             }
 
             pub fn set_init_by_range(&mut self, r: f64) -> &mut Self {
@@ -217,9 +218,8 @@ mod common_arg_trees {
                 self
             }
 
-            pub fn set_init_by_path(&mut self, file: &Path) -> Result<&mut Self, ArgError> {
-                verify_file_readable(file)?;
-                *self = Self::Path(file.to_path_buf());
+            pub fn set_init_by_path(&mut self, file: ArgReadablePath) -> Result<&mut Self, ArgError> {
+                *self = Self::Path(file);
                 Ok(self)
             }
 
@@ -229,25 +229,18 @@ mod common_arg_trees {
                 } else {
                     let mut par = HashMap::new();
                     par.insert(param.to_string(), val.into());
-                    *self = Self::ParamValue((par, PathBuf::new()));
+                    *self = Self::ParamValue((par, ArgWritablePath::Borrowed("init_params_setup.json")));
                 }
                 self
             }
 
-            pub fn target_init_by_param_path(&mut self, file: &Path) -> Result<&mut Self, ArgError> {
-                let file = verify_or_default(file,"init_params_setup.json")?;
+            pub fn target_init_by_param_path(&mut self, file: ArgWritablePath) -> &mut Self {
                 if let Self::ParamValue((_, f)) = self {
                     *f = file;
                 } else {
                     *self = Self::ParamValue((HashMap::new(), file));
                 }
-                Ok(self)
-            }
-        }
-
-        impl Default for ArgInit {
-            fn default() -> Self {
-                Self::new()
+                self
             }
         }
     }
@@ -255,10 +248,9 @@ mod common_arg_trees {
 
     mod arg_random {
         use super::*;
-        #[derive(Debug, PartialEq)]
-        pub struct ArgRandom {
-            seed: Option<u32>,
-        }
+        DefArgTree!{<"Random number generator options">ArgRandom => {
+            <"Random number generator seed">seed: Option<u32> = None,
+        }}
 
         impl ArgThrough for ArgRandom {
             fn arg_type(&self) -> Result<ArgType, ArgError> {
@@ -276,18 +268,11 @@ mod common_arg_trees {
     
         impl ArgRandom {
             pub fn new() -> ArgRandom {
-                ArgRandom { seed: None }
+                Self::ARG_DEFAULT
             }
-    
-            pub fn set_seed(&mut self, new_seed: Option<u32>) -> &mut Self {
-                self.seed = new_seed;
-                self
-            }
-        }
-    
-        impl Default for ArgRandom {
-            fn default() -> Self {
-                Self::new()
+
+            default_setter!{
+                <"Random number generator seed">(seed:Option<u32>;);
             }
         }
     }
@@ -295,11 +280,9 @@ mod common_arg_trees {
 
     mod arg_num_threads {
         use super::*;
-        const DEFAULT_THREADS: u32 = 1;
-        #[derive(Debug,PartialEq,Eq)]
-        pub struct ArgNumThreads {
-            threads: u32,
-        }
+        DefArgTree!{<"Number of threads">ArgNumThreads => {
+            <"Number of threads">threads: u32 = 1,
+        }}
     
         impl ArgThrough for ArgNumThreads {
             fn arg_type(&self) -> Result<ArgType, ArgError> {
@@ -307,25 +290,18 @@ mod common_arg_trees {
             }
     
             fn arg_through(&self, cmd: &mut Command) -> Result<(), ArgError> {
-                if self.threads!=DEFAULT_THREADS { cmd.arg(format!("num_threads={}", self.threads)); }
+                if !self.is_default() { cmd.arg(format!("num_threads={}", self.threads)); }
                 Ok(())
             }
         }
     
         impl ArgNumThreads {
             pub fn new() -> ArgNumThreads {
-                ArgNumThreads { threads: DEFAULT_THREADS }
+                Self::ARG_DEFAULT
             }
     
-            pub fn set_num_threads(&mut self, new_ts: u32) -> &mut Self {
-                self.threads = new_ts;
-                self
-            }
-        }
-    
-        impl Default for ArgNumThreads {
-            fn default() -> Self {
-                Self::new()
+            default_setter!{
+                <"Number of threads">(threads:u32;);
             }
         }
     }
@@ -333,15 +309,14 @@ mod common_arg_trees {
 
     mod arg_output {
         use super::*;
-        #[derive(Debug)]
-        pub struct ArgOutput {
-            file: PathBuf,
-            diagnostic_file: PathBuf,
-            refresh: u32,
-            sig_figs: i32,
-            profile_file: PathBuf,
-            save_cmdstan_config: bool,
-        }
+        DefArgTree!{<"File output options">ArgOutput => {
+            <"Output file">file: ArgWritablePath = ArgWritablePath::Borrowed("output.csv"),
+            <"Auxiliary output file for diagnostic information">diagnostic_file: ArgWritablePath = ArgWritablePath::ARG_DEFAULT,
+            <"Number of iterations between screen updates">refresh: u32 = 100,
+            <"The number of significant figures used for the output CSV files">sig_figs: i32 = -1,
+            <"File to store profiling information">profile_file: ArgWritablePath = ArgWritablePath::ARG_DEFAULT,
+            <"Save cmdstan config">save_cmdstan_config: bool = false,
+        }}
 
         impl ArgThrough for ArgOutput {
             fn arg_type(&self) -> Result<ArgType, ArgError> {
@@ -353,93 +328,32 @@ mod common_arg_trees {
                     return Ok(());
                 }
                 cmd.arg("output");
-                if self.file.as_os_str() != "output.csv" {
-                    cmd.arg(args_combine("file", self.file.as_os_str()));
-                }
-                if !self.diagnostic_file.as_os_str().is_empty() {
-                    cmd.arg(args_combine("diagnostic_file", self.diagnostic_file.as_os_str()));
-                }
-                if self.refresh != 100 {
-                    cmd.arg(format!("refresh={}",self.refresh));
-                }
-                if self.sig_figs != -1 {
-                    cmd.arg(format!("sig_fig={}",self.sig_figs));
-                }
-                if !self.profile_file.as_os_str().is_empty() {
-                    cmd.arg(args_combine("profile_file", self.profile_file.as_os_str()));
-                }
-                if self.save_cmdstan_config {
-                    cmd.arg("save_cmdstan_config=true");
-                }
+                arg_into!(self.{file, diagnostic_file, refresh, sig_figs, profile_file, save_cmdstan_config} in Self >> cmd);
                 Ok(())
             }
         }
 
         impl ArgOutput {
             pub fn new() -> ArgOutput {
-                ArgOutput {
-                    file: "output.csv".to_string().into(),
-                    diagnostic_file: PathBuf::new(),
-                    refresh: 100,
-                    sig_figs: -1,
-                    profile_file: PathBuf::new(),
-                    save_cmdstan_config: false
-                }
+                Self::ARG_DEFAULT
             }
 
-            fn is_default(&self) -> bool {
-                if self.file.as_os_str() != "output.csv" { return false; }
-                if !self.diagnostic_file.as_os_str().is_empty() { return false; }
-                if self.refresh != 100 { return false; }
-                if self.sig_figs != -1 { return false; }
-                if !self.profile_file.as_os_str().is_empty() { return false; }
-                if self.save_cmdstan_config { return false; }
-                true
-            }
-
-            pub fn target_output_file(&mut self, path: &Path) -> Result<&mut Self, ArgError> {
-                self.file = verify_or_default(path, "output.csv")?;
-                Ok(self)
-            }
-
-            pub fn target_diagnostic_file(&mut self, path: &Path) -> Result<&mut Self, ArgError> {
-                self.file = verify_or_default(path, "diagnotstic_.csv")?;
-                self.diagnostic_file = path.to_path_buf();
-                Ok(self)
-            }
-
-            pub fn set_refresh(&mut self, reftime: u32) -> &mut Self {
-                self.refresh = reftime;
-                self
-            }
-
-            pub fn set_sig_figs(&mut self, sig_figs: i32) -> Result<&mut Self, ArgError> {
-                if !(-1..=18).contains(&sig_figs) {
-                    return Err(ArgError::BadArgumentValue(
-                        format!("argument output->sig_figs requires 0 <= integer <= 18 or -1, received {}",sig_figs).to_string()));
-                }
-                self.sig_figs = sig_figs;
-                Ok(self)
-            }
-
-            pub fn target_profile_file(&mut self, path: &Path) -> Result<&mut Self, ArgError> {
-                self.profile_file = verify_or_default(path, "profile_.csv")?;
-                Ok(self)
-            }
-
-            pub fn set_save_cmdstan_config(&mut self, val: bool) -> &mut Self {
-                self.save_cmdstan_config = val;
-                self
-            }
-        }
-
-        impl Default for ArgOutput {
-            fn default() -> Self {
-                Self::new()
+            default_setter!{
+                <"Output file">(file:ArgWritablePath;);
+                <"Auxiliary output file for diagnostic information">(diagnostic_file:ArgWritablePath;);
+                <"Number of iterations between screen updates">(refresh:u32;);
+                <"The number of significant figures used for the output CSV files">
+                    (sig_figs:i32; !(0..=18).contains(&sig_figs) && sig_figs!=-1 => {
+                        format!("argument output->sig_figs requires 0 <= integer <= 18 or -1, received {}",sig_figs)
+                    });
+                <"File to store profiling information">(profile_file:ArgWritablePath;);
+                <"Save cmdstan config">(save_cmdstan_config:bool;);
             }
         }
     }
     pub use arg_output::*;
+
+    ImplDefault!{ArgID, ArgData, ArgInit, ArgRandom, ArgNumThreads, ArgOutput}
 }
 
 pub use common_arg_trees::{ArgID, ArgData, ArgInit, ArgRandom, ArgNumThreads, ArgOutput};

@@ -136,10 +136,6 @@ impl ArgSampleAdapt {
     }
 }
 
-/*
-    Hmc(ArgSampleHmc),  //default
-    FixedParam,
-*/
 impl ArgSampleAlgorithm {
     pub fn new() -> Self {
         Self::ARG_DEFAULT
