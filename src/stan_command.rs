@@ -7,6 +7,7 @@ mod variational;
 mod diagnose;
 mod generate_quantities;
 mod pathfinder;
+mod log_prob;
 
 pub mod stan_command_core {
     use crate::prelude::*;
