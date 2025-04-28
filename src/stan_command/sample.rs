@@ -1,162 +1,199 @@
 use std::path::{PathBuf, Path};
 use super::arg_tree::*;
 
-#[derive(Debug, Clone)]
-pub struct ArgSample {
-    pub num_samples: u32,    //>0, default: 1000
-    pub num_warmup: u32,     //>0, default: 1000
-    pub save_warmup: bool,   //default: false
-    pub thin: u32,           //>0, default: 1
-    pub adapt: ArgSampleAdapt,
-    pub algorithm: ArgSampleAlgorithm,
-    pub num_chains: u32,     //>0, default: 1
-}
+/*
+sample
+  Bayesian inference with Markov Chain Monte Carlo
+  Valid subarguments: num_samples, num_warmup, save_warmup, thin, adapt, algorithm, num_chains
 
-#[derive(Debug, Clone)]
-pub struct ArgSampleAdapt {
-    pub engaged: bool,       //default: true
-    pub gamma: f64,          //>0, default: 0.05
-    pub delta: f64,          //[0.1,1.0], default:0.8
-    pub kappa: f64,          //>0, default:0.75
-    pub t0: f64,             //>0, default:10
-    pub init_buffer: u32,    //>0, default:75
-    pub term_buffer: u32,    //>0, default:50
-    pub window: u32,         //>0, default:25
-    pub save_metric: bool,   //default: false
-}
+  num_samples=<int>
+    Number of sampling iterations
+    Valid values: 0 < num_samples
+    Defaults to 1000
 
-#[derive(Debug, Clone)]
-pub enum ArgSampleAlgorithm {
-    Hmc(ArgSampleHmc),  //default
-    FixedParam,
-}
+  num_warmup=<int>
+    Number of warmup iterations
+    Valid values: 0 < num_warmup
+    Defaults to 1000
 
-#[derive(Debug, Clone)]
-pub struct ArgSampleHmc {
-    pub engine: ArgSampleEngine,
-    pub metric: ArgSampleMetric,
-    pub metric_file: PathBuf, //input file, default:""
-    pub stepsize: f64,        //>0, default:1
-    pub stepsize_jitter: f64  //[0,1], default:0
-}
+  save_warmup=<boolean>
+    Stream warmup samples to output?
+    Valid values: [0, 1, false, true]
+    Defaults to false
+
+  thin=<int>
+    Period between saved samples
+    Valid values: 0 < thin
+    Defaults to 1
+
+  adapt
+    Warmup Adaptation
+    Valid subarguments: engaged, gamma, delta, kappa, t0, init_buffer, term_buffer, window, save_metric
+
+    engaged=<boolean>
+      Adaptation engaged?
+      Valid values: [0, 1, false, true]
+      Defaults to true
+
+    gamma=<double>
+      Adaptation regularization scale
+      Valid values: 0 < gamma
+      Defaults to 0.05
+
+    delta=<double>
+      Adaptation target acceptance statistic
+      Valid values: 0.100000 <= delta <= 1.000000
+      Defaults to 0.8
+
+    kappa=<double>
+      Adaptation relaxation exponent
+      Valid values: 0 < kappa
+      Defaults to 0.75
+
+    t0=<double>
+      Adaptation iteration offset
+      Valid values: 0 < t0
+      Defaults to 10
+
+    init_buffer=<unsigned int>
+      Width of initial fast adaptation interval
+      Valid values: 0 < init_buffer
+      Defaults to 75
+
+    term_buffer=<unsigned int>
+      Width of final fast adaptation interval
+      Valid values: 0 < term_buffer
+      Defaults to 50
+
+    window=<unsigned int>
+      Initial width of slow adaptation interval
+      Valid values: 0 < window
+      Defaults to 25
+
+    save_metric=<boolean>
+      Save metric as JSON?
+      Valid values: [0, 1, false, true]
+      Defaults to false
+
+  algorithm=<list element>
+    Sampling algorithm
+    Valid values: hmc, fixed_param
+    Defaults to hmc
+
+    hmc
+      Hamiltonian Monte Carlo
+      Valid subarguments: engine, metric, metric_file, stepsize, stepsize_jitter
+
+      engine=<list element>
+        Engine for Hamiltonian Monte Carlo
+        Valid values: static, nuts
+        Defaults to nuts
+
+        static
+          Static integration time
+          Valid subarguments: int_time
+
+          int_time=<double>
+            Total integration time for Hamiltonian evolution, default is 2 * pi
+            Valid values: 0 < int_time
+            Defaults to 6.28319
+
+        nuts
+          The No-U-Turn Sampler
+          Valid subarguments: max_depth
+
+          max_depth=<int>
+            Maximum tree depth
+            Valid values: 0 < max_depth
+            Defaults to 10
+
+      metric=<list element>
+        Geometry of base manifold
+        Valid values: unit_e, diag_e, dense_e
+        Defaults to diag_e
+
+        unit_e
+          Euclidean manifold with unit metric
+
+        diag_e
+          Euclidean manifold with diag metric
+
+        dense_e
+          Euclidean manifold with dense metric
+
+      metric_file=<string>
+        Input file with precomputed Euclidean metric
+        Valid values: All
+        Defaults to
+
+      stepsize=<double>
+        Step size for discrete evolution
+        Valid values: 0 < stepsize
+        Defaults to 1
+
+      stepsize_jitter=<double>
+        Uniformly random jitter of the stepsize, in percent
+        Valid values: 0.000000 <= stepsize_jitter <= 1.000000
+        Defaults to 0
+
+    fixed_param
+      Fixed Parameter Sampler
+
+  num_chains=<int>
+    Number of chains
+    Valid values: 0 < num_chains
+    Defaults to 1
+*/
+
+DefArgTree!{<"Bayesian inference with Markov Chain Monte Carlo"> ArgSample => {
+    <"Number of sampling iterations">num_samples: u32 = 1000,    //>0, default: 1000
+    <"Number of warmup iterations">num_warmup: u32 = 1000,     //>0, default: 1000
+    <"Stream warmup samples to output?">save_warmup: bool = false,   //default: false
+    <"Period between saved samples">thin: u32 = 1,           //>0, default: 1
+    <"Warmup Adaptation">adapt: ArgSampleAdapt = ArgSampleAdapt::ARG_DEFAULT, 
+    <"Sampling algorithm">algorithm: ArgSampleAlgorithm = ArgSampleAlgorithm::ARG_DEFAULT,
+    <"Number of chains">num_chains: u32 = 1,     //>0, default: 1
+}}
+
+DefArgTree!{<"Warmup Adaptation">ArgSampleAdapt => {
+    <"Adaptation engaged?">engaged: bool = true,       //default: true
+    <"Adaptation regularization scale">gamma: f64 = 0.05,          //>0, default: 0.05
+    <"Adaptation target acceptance statistic">delta: f64 = 0.8,          //[0.1,1.0], default:0.8
+    <"Adaptation relaxation exponent">kappa: f64 = 0.75,          //>0, default:0.75
+    <"Adaptation iteration offset">t0: f64 = 10.0,             //>0, default:10
+    <"Width of initial fast adaptation interval">init_buffer: u32 = 75,    //>0, default:75
+    <"Width of final fast adaptation interval">term_buffer: u32 = 50,    //>0, default:50
+    <"Initial width of slow adaptation interval">window: u32 = 25,         //>0, default:25
+    <"Save metric as JSON?">save_metric: bool = false,
+}}
+
+DefArgTree!{<"Sampling algorithm">ArgSampleAlgorithm = Self::Hmc(ArgSampleHmc::ARG_DEFAULT) => {
+    <"Hamiltonian Monte Carlo">Hmc(ArgSampleHmc),
+    <"Fixed Parameter Sampler">FixedParam,
+}}
+
+DefArgTree!{<"Hamiltonian Monte Carlo">ArgSampleHmc => {
+    <"Engine for Hamiltonian Monte Carlo">engine: ArgSampleEngine = ArgSampleEngine::ARG_DEFAULT, //default
+    <"Geometry of base manifold">metric: ArgSampleMetric = ArgSampleMetric::DiagE, //default
+    <"Input file with precomputed Euclidean metric">metric_file: ArgReadablePath = ArgReadablePath::ARG_DEFAULT, //input file, default:""
+    <"Step size for discrete evolution">stepsize: f64 = 1.0,        //>0, default:1
+    <"Uniformly random jitter of the stepsize, in percent">stepsize_jitter: f64 = 0.0,  //[0,1], default:0
+}}
 
 #[allow(clippy::approx_constant, reason="the 6.28319 is hard coded in CmdStan")]
 const DEFAULT_ENGINE_STATIC_VAL: f64 = 6.28319;
-#[derive(Debug, Clone)]
-pub enum ArgSampleEngine {
-    Static(f64),          //>0, default: 6.28319
-    Nuts(u32),            //default, >0, default: 10
-}
+DefArgTree!{<"Engine for Hamiltonian Monte Carlo">ArgSampleEngine = Self::Nuts(10) => {
+    <"Static integration time">Static(f64),          //>0, default: 6.28319
+    <"The No-U-Turn Sampler">Nuts(u32),            //default, >0, default: 10
+}}
 
-#[derive(Debug, Clone, Default)]
-pub enum ArgSampleMetric {
-    UnitE,
-    #[default]
-    DiagE,  //default
-    DenseE,
-}
+DefArgTree!{<"Geometry of base manifold">ArgSampleMetric = Self::DiagE => {
+    <"Euclidean manifold with unit metric">UnitE,
+    <"Euclidean manifold with diag metric">DiagE, 
+    <"Euclidean manifold with dense metric">DenseE,
+}}
 
-impl Default for ArgSample {
-    fn default() -> Self {
-        Self {
-            num_samples: 1000,
-            num_warmup: 1000,
-            save_warmup: false,
-            thin: 1,
-            adapt: ArgSampleAdapt::default(),
-            algorithm: ArgSampleAlgorithm::default(),
-            num_chains: 1,
-        }
-    }
-}
-
-impl Default for ArgSampleAdapt {
-    fn default() -> Self {
-        Self { 
-            engaged: true,
-            gamma: 0.05,
-            delta: 0.8,
-            kappa: 0.75,
-            t0: 10.0,
-            init_buffer: 75,
-            term_buffer: 50,
-            window: 25,
-            save_metric: false
-        }
-    }
-}
-
-impl Default for ArgSampleAlgorithm {
-    fn default() -> Self {
-        ArgSampleAlgorithm::Hmc(ArgSampleHmc::default())
-    }
-}
-
-impl Default for ArgSampleHmc {
-    fn default() -> Self {
-        Self {
-            engine: ArgSampleEngine::default(),
-            metric: ArgSampleMetric::default(),
-            metric_file: PathBuf::new(),
-            stepsize: 1.0,
-            stepsize_jitter: 0.0,
-        }
-    }
-}
-
-impl Default for ArgSampleEngine {
-    fn default() -> Self {
-        ArgSampleEngine::Nuts(10)
-    }
-}
-
-impl ArgSampleAdapt {
-    fn is_default(&self) -> bool {
-        self.engaged                     &&
-        (self.gamma-0.05).abs() <= EPS   &&
-        (self.delta-0.8).abs() <= EPS    &&
-        (self.kappa-0.75).abs() <= EPS   &&
-        (self.t0-0.75).abs() <= EPS      &&
-        self.init_buffer == 75           &&
-        self.term_buffer == 50           &&
-        self.window == 25                &&
-        !self.save_metric
-    }
-}
-
-impl ArgSampleAlgorithm {
-    fn is_default(&self) -> bool {
-        match self {
-            Self::FixedParam => false,
-            Self::Hmc(hmc) => hmc.is_default()
-        }
-    }
-}
-
-impl ArgSampleHmc {
-    fn is_default(&self) -> bool {
-        self.engine.is_default()                &&
-        self.metric.is_default()                &&
-        self.metric_file.as_os_str().is_empty() &&
-        (self.stepsize-1.0).abs() <= EPS        &&
-        self.stepsize_jitter.abs() <= EPS
-    }
-}
-
-impl ArgSampleEngine {
-    fn is_default(&self) -> bool {
-        match self {
-            Self::Nuts(x) => *x == 10,
-            _ => false,
-        }
-    }
-}
-
-impl ArgSampleMetric {
-    fn is_default(&self) -> bool {
-        matches!(self, Self::DiagE)
-    }
-}
+ImplDefault!(ArgSample, ArgSampleAdapt, ArgSampleAlgorithm, ArgSampleHmc, ArgSampleEngine, ArgSampleMetric);
 
 impl ArgThrough for ArgSample {
     fn arg_type(&self) -> Result<ArgType, ArgError> {
@@ -165,48 +202,14 @@ impl ArgThrough for ArgSample {
 
     fn arg_through(&self, cmd: &mut std::process::Command) -> Result<(), ArgError> {
         cmd.arg("sample");
-        if self.num_samples != 1000 {
-            cmd.arg(format!("num_samples={}", self.num_samples));
-        }
-        if self.num_warmup != 1000 {
-            cmd.arg(format!("num_warmup={}", self.num_warmup));
-        }
-        if self.save_warmup {
-            cmd.arg("save_warmup=true");
-        }
-        if self.thin != 1 {
-            cmd.arg(format!("thin={}",self.thin));
-        }
+        arg_into!(self.{num_samples, num_warmup, save_warmup, thin, num_chains} in ArgSample >> cmd);
+
         if !self.adapt.is_default() {
             cmd.arg("adapt");
-            if !self.adapt.engaged {
-                cmd.arg("engaged=false");
-            }
-            if (self.adapt.gamma-0.05).abs() > EPS {
-                cmd.arg(format!("gamma={}",self.adapt.gamma));
-            }
-            if (self.adapt.delta-0.8).abs() > EPS {
-                cmd.arg(format!("delta={}",self.adapt.delta));
-            }
-            if (self.adapt.kappa-0.75).abs() > EPS {
-                cmd.arg(format!("kappa={}",self.adapt.kappa));
-            }
-            if (self.adapt.t0-10.0).abs() > EPS {
-                cmd.arg(format!("t0={}",self.adapt.t0));
-            }
-            if self.adapt.init_buffer != 75 {
-                cmd.arg(format!("init_buffer={}",self.adapt.init_buffer));
-            }
-            if self.adapt.term_buffer != 50 {
-                cmd.arg(format!("term_buffer={}",self.adapt.term_buffer));
-            }
-            if self.adapt.window != 25 {
-                cmd.arg(format!("window={}",self.adapt.window));
-            }
-            if self.adapt.save_metric {
-                cmd.arg("save_metric=true");
-            }
+            let adpt = &self.adapt;
+            arg_into!(adpt.{engaged, gamma, delta, kappa, t0, init_buffer, term_buffer, window, save_metric} in ArgSampleAdapt >> cmd);
         }
+
         if !self.algorithm.is_default() {
             match &self.algorithm {
                 ArgSampleAlgorithm::FixedParam => {
@@ -237,98 +240,27 @@ impl ArgThrough for ArgSample {
                         }
                         _ => {}
                     }
-                    if !hmc.metric_file.as_os_str().is_empty() {
-                        cmd.arg(args_combine("metric_file", hmc.metric_file.as_os_str()));
-                    }
-                    if (hmc.stepsize-1.0).abs() > EPS {
-                        cmd.arg(format!("stepsize={}",hmc.stepsize));
-                    }
-                    if hmc.stepsize_jitter.abs() > EPS {
-                        cmd.arg(format!("stepsize_jitter={}",hmc.stepsize_jitter));
-                    }
+                    arg_into!(hmc.{metric_file, stepsize, stepsize_jitter} in ArgSampleHmc >> cmd);
                 }
             }
-        }
-        if self.num_chains != 1 {
-            cmd.arg(format!("num_chains={}",self.num_chains));
         }
         Ok(())
     }
 }
 
-/*
-    num_samples: u32,    //>0, default: 1000
-    num_warmup: u32,     //>0, default: 1000
-    save_warmup: bool,   //default: false
-    thin: u32,           //>0, default: 1
-    pub adapt: ArgSampleAdapt,
-    pub algorithm: ArgSampleAlgorithm,
-    num_chains: u32,     //>0, default: 1
-*/
 impl ArgSample {
     pub fn new() -> ArgSample {
-        Self::default()
+        Self::ARG_DEFAULT
     }
 
-    pub fn set_num_samples(&mut self, num_sample: u32) -> Result<&mut Self, ArgError> {
-        if num_sample == 0 {
-            Err(ArgError::BadArgumentValue("Sample: num of samples could not be 0".to_string()))
-        } else {
-            self.num_samples = num_sample;
-            Ok(self)
-        }
-    }
-
-    pub fn set_num_warmup(&mut self, num_warmup: u32) -> Result<&mut Self, ArgError> {
-        if num_warmup == 0 {
-            Err(ArgError::BadArgumentValue("Sample: num of warmup could not be 0".to_string()))
-        } else {
-            self.num_warmup = num_warmup;
-            Ok(self)
-        }
-    }
-
-    pub fn set_num_chains(&mut self, num_chains: u32) -> Result<&mut Self, ArgError> {
-        if num_chains == 0 {
-            Err(ArgError::BadArgumentValue("Sample: num of chains could not be 0".to_string()))
-        } else {
-            self.num_chains = num_chains;
-            Ok(self)
-        }
-    }
-
-    pub fn set_save_warmup(&mut self, save_warmup: bool) -> &mut Self {
-        self.save_warmup = save_warmup;
-        self
-    }
-
-    pub fn set_thin(&mut self, thin: u32) -> Result<&mut Self, ArgError> {
-        if thin == 0 {
-            Err(ArgError::BadArgumentValue("Sample: period between saved samples could not be 0".to_string()))
-        } else {
-            self.thin = thin;
-            Ok(self)
-        }
-    }
-
-    pub fn set_adapt(&mut self, adapt: ArgSampleAdapt) -> &mut Self {
-        self.adapt = adapt;
-        self
-    }
-
-    pub fn set_adapt_clone(&mut self, adapt: &ArgSampleAdapt) -> &mut Self {
-        self.adapt = adapt.clone();
-        self
-    }
-
-    pub fn set_algorithm(&mut self, algo: ArgSampleAlgorithm) -> &mut Self {
-        self.algorithm = algo;
-        self
-    }
-
-    pub fn set_algorithm_clone(&mut self, algo: &ArgSampleAlgorithm) -> &mut Self {
-        self.algorithm = algo.clone();
-        self
+    default_setter!{
+        <"Number of sampling iterations">(num_samples:u32; num_samples==0 => "Sample: num_samples could not be 0".to_string());
+        <"Number of warmup iterations">(num_warmup: u32; num_warmup==0 => "Sample: num_warmup could not be 0".to_string());
+        <"Stream warmup samples to output?">(save_warmup: bool;);
+        <"Period between saved samples">(thin: u32; thin==0 => "Sample: period between saved samples could not be 0".to_string());
+        <"Warmup Adaptation">(adapt: ArgSampleAdapt;); 
+        <"Sampling algorithm">(algorithm: ArgSampleAlgorithm;);
+        <"Number of chains">(num_chains: u32; num_chains==0 => "Sample: num of chains could not be 0".to_string());
     }
 }
 
@@ -345,80 +277,19 @@ impl ArgSample {
 */
 impl ArgSampleAdapt {
     pub fn new() -> Self {
-        Self::default()
+        Self::ARG_DEFAULT
     }
 
-    pub fn set_engaged(&mut self, engaged: bool) -> &mut Self {
-        self.engaged = engaged;
-        self
-    }
-
-    pub fn set_gamma(&mut self, gamma: f64) -> Result<&mut Self, ArgError> {
-        if gamma>0.0 {
-            self.gamma = gamma;
-            Ok(self)
-        } else {
-            Err(ArgError::BadArgumentValue(format!("Sample: set_gamma expected gamma>0, found {}", gamma).to_string()))
-        }
-    }
-
-    pub fn set_delta(&mut self, delta: f64) -> Result<&mut Self, ArgError> {
-        if (0.1..=1.0).contains(&delta) {
-            self.delta = delta;
-            Ok(self)
-        } else {
-            Err(ArgError::BadArgumentValue(format!("Sample: set_delta expected delta in [0.1,1.0], found {}", delta).to_string()))
-        }
-    }
-
-    pub fn set_kappa(&mut self, kappa: f64) -> Result<&mut Self, ArgError> {
-        if kappa>0.0 {
-            self.kappa = kappa;
-            Ok(self)
-        } else {
-            Err(ArgError::BadArgumentValue(format!("Sample: set_kappa expected kappa>0, found {}", kappa).to_string()))
-        }
-    }
-
-    pub fn set_t0(&mut self, t0: f64) -> Result<&mut Self, ArgError> {
-        if t0>0.0 {
-            self.t0 = t0;
-            Ok(self)
-        } else {
-            Err(ArgError::BadArgumentValue(format!("Sample: set_t0 expected t0>0, found {}", t0).to_string()))
-        }
-    }
-
-    pub fn set_init_buffer(&mut self, buffer: u32) -> Result<&mut Self, ArgError> {
-        if buffer==0 {
-            Err(ArgError::BadArgumentValue("Sample: init buffer could not be 0".to_string()))
-        } else {
-            self.init_buffer = buffer;
-            Ok(self)
-        }
-    }
-
-    pub fn set_term_buffer(&mut self, buffer: u32) -> Result<&mut Self, ArgError> {
-        if buffer==0 {
-            Err(ArgError::BadArgumentValue("Sample: term buffer could not be 0".to_string()))
-        } else {
-            self.term_buffer = buffer;
-            Ok(self)
-        }
-    }
-
-    pub fn set_window(&mut self, window: u32) -> Result<&mut Self, ArgError> {
-        if window==0 {
-            Err(ArgError::BadArgumentValue("Sample: window length could not be 0".to_string()))
-        } else {
-            self.window = window;
-            Ok(self)
-        }
-    }
-
-    pub fn set_save_metric(&mut self, save_metric: bool) -> &mut Self {
-        self.save_metric = save_metric;
-        self
+    default_setter!{
+        <"Adaptation engaged?">(engaged: bool;);
+        <"Adaptation regularization scale">(gamma: f64; gamma<=0.0 => format!("Sample: set_gamma expected gamma>0, found {}",gamma));
+        <"Adaptation target acceptance statistic">(delta: f64; !(0.1..=1.0).contains(&delta) => format!("Sample: set_delta expected delta in [0.1,1.0], found {}",delta));
+        <"Adaptation relaxation exponent">(kappa: f64; kappa<=0.0 => format!("Sample: set_kappa expected kappa>0, found {}",kappa));
+        <"Adaptation iteration offset">(t0: f64; t0<=0.0 => format!("Sample: set_t0 expected t0>0, found {}",t0));
+        <"Width of initial fast adaptation interval">(init_buffer: u32; init_buffer==0 => format!("Sample: set_init_buffer expected init_buffer>0, found {}",init_buffer));
+        <"Width of final fast adaptation interval">(term_buffer: u32; term_buffer==0 => format!("Sample: set_term_buffer expected term_buffer>0, found {}",term_buffer));
+        <"Initial width of slow adaptation interval">(window: u32; window==0 => format!("Sample: set_window expected window>0, found {}",window));
+        <"Save metric as JSON?">(save_metric: bool;);
     }
 }
 
@@ -509,9 +380,8 @@ impl ArgSampleHmc {
         self
     }
 
-    pub fn set_metric_file(&mut self, file: &Path) -> Result<&mut Self, ArgError> {
-        verify_file_readable(file)?;
-        self.metric_file = file.to_path_buf();
+    pub fn set_metric_file(&mut self, file: ArgReadablePath) -> Result<&mut Self, ArgError> {
+        self.metric_file = file;
         Ok(self)
     }
 
