@@ -300,4 +300,5 @@ mod arg_path {
 
 }
 
+#[allow(unused_imports)]
 pub use arg_path::{ArgPath, ArgWritablePath, ArgReadablePath};

@@ -13,8 +13,8 @@ impl ArgGenerate {
     }
 
     default_setter!{
-        (num_chains:u32; num_chains==0 => "Generate: num_chains cannot be 0".to_string());
-        (fitted_params:ArgReadablePath;);
+        <"Number of chains">(num_chains:u32; num_chains==0 => "Generate: num_chains cannot be 0".to_string());
+        <"Input file of sample of fitted parameter values for model conditioned on data">(fitted_params:ArgReadablePath;);
     }
 }
 
