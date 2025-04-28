@@ -1,6 +1,17 @@
-pub mod stan_command {
+#[macro_use]
+pub mod arg_tree;
+mod sample;
+mod optimize;
+mod common_arg;
+mod variational;
+mod diagnose;
+mod generate_quantities;
+mod pathfinder;
+mod log_prob;
+mod laplace;
+
+pub mod stan_command_core {
     use crate::prelude::*;
-    use crate::stan_interface::STAN_HOME_KEY;
     use std::collections::HashMap;
     use std::process::Command;
     use std::path::{Path,PathBuf};
@@ -29,8 +40,11 @@ pub mod stan_command {
         }
     
         /// add a command line argument to the command.
+        /// 
         /// args: like "data", "output", "random", etc.
+        /// 
         /// argv: like "file=data.json", "seed=121", etc.
+        /// 
         pub fn add_args(&mut self, args: &str, argv: Option<&str>) -> &mut Self {
             let args = args.trim().to_string();
             let argv = argv.map(|s| s.trim().to_string());
@@ -82,7 +96,7 @@ pub mod stan_command {
                 }
             }
 
-            let out_value = command.output().map_err(|e| StanError::CompileIOError(e))?;
+            let out_value = command.output().map_err( StanError::CompileIOError)?;
             if !out_value.status.success() {
                 return Err(StanError::CompileError("Stan command failed".to_string()).into());
             }
@@ -138,6 +152,6 @@ mod test_command {
         stm.set_data_path("examples\\bernoulli\\bernoulli.data.json");
         stm.complie().unwrap();
         let mut cmd = StanCommand::new(&stm, StanCommandType::Sample).unwrap();
-        let res = cmd.execute(SampleResultAnalyzer {}).unwrap();
+        let _ = cmd.execute(SampleResultAnalyzer {}).unwrap();
     }
 }

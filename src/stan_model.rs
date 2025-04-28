@@ -66,9 +66,9 @@ pub mod std_stan_model {
             }
 
             if let Some(data) = &self.data {
-                let mut file = File::create(self.data_path.clone().unwrap()).map_err(|e| StanError::IoError(e))?;
+                let mut file = File::create(self.data_path.clone().unwrap()).map_err(StanError::IoError)?;
                 let content = data.write_as_stan_data();
-                file.write_all( content.as_bytes()).map_err(|e| StanError::IoError(e))?;
+                file.write_all( content.as_bytes()).map_err(StanError::IoError)?;
                 Ok(self)
             } else { unreachable!() } // hint the complier
         }
@@ -86,14 +86,14 @@ pub mod std_stan_model {
                 return Ok(self);
             }
             
-            let absolute_excutable = absolute(self.get_excutable_name()).map_err(|e| StanError::IoError(e))?;
+            let absolute_excutable = absolute(self.get_excutable_name()).map_err( StanError::IoError)?;
             let command = Command::new("make")
                 .current_dir(std::env::var(STAN_HOME_KEY).unwrap())
                 .arg(absolute_excutable)
-                .status().map_err(|e| StanError::CompileIOError(e))?;
+                .status().map_err(StanError::CompileIOError)?;
 
             if !command.success() {
-                return Err(StanError::CompileError("Compile failed".to_string()));
+                Err(StanError::CompileError("Compile failed".to_string()))
             } else {
                 self.complied = true;
                 Ok(self)    

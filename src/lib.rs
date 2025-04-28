@@ -47,23 +47,22 @@ mod stan_error {
         }
     }
     
-    impl Into<StanError> for std::io::Error {
-        fn into(self) -> StanError {
-            StanError::IoError(self)
+    impl From<std::io::Error> for StanError {
+        fn from(e: std::io::Error) -> Self {
+            StanError::IoError(e)
         }
     }
-    
+
     impl std::error::Error for StanError {}    
 }
 
 pub use stan_interface::stan_init;
 mod stan_interface {
-    use std::env::{self, set_current_dir};
-    use std::path::{Path, PathBuf};
+    use std::path::Path;
     pub const STAN_HOME_KEY: &str = "STAN_HOME_RS";
     pub fn stan_init(stan_home_path: &Path) -> Result<(), std::io::Error> {
         unsafe {
-            env::set_var(STAN_HOME_KEY, stan_home_path.as_os_str());
+            std::env::set_var(STAN_HOME_KEY, stan_home_path.as_os_str());
         }
         Ok(())
     }
@@ -81,8 +80,8 @@ pub mod prelude {
 
     // structs
     pub use crate::stan_model::std_stan_model::StdStanModel;
-    pub use crate::stan_command::stan_command::StanCommand;
-    pub use crate::stan_command::stan_command::StanCommandType;
+    pub use crate::stan_command::stan_command_core::StanCommand;
+    pub use crate::stan_command::stan_command_core::StanCommandType;
     pub use crate::data_entries::data_entry::DataEntry;
     pub use crate::data_entries::data_entry::DataEntries;
     pub use crate::data_entries::data_collections::DataCollection;

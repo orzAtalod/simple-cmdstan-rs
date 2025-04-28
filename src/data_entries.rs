@@ -10,32 +10,34 @@ pub mod data_entry {
         Tuple(Vec<DataEntry>),
     }
 
-    impl Into<DataEntry> for i32 {
-        fn into(self) -> DataEntry {
-            DataEntry::Int(self)
+    impl From<i32> for DataEntry {
+        fn from(value: i32) -> Self {
+            DataEntry::Int(value)
         }
     }
 
-    impl Into<DataEntry> for f64 {
-        fn into(self) -> DataEntry {
-            DataEntry::Real(self)
+    impl From<f64> for DataEntry {
+        fn from(value: f64) -> Self {
+            DataEntry::Real(value)
         }
     }
 
-    impl<T> Into<DataEntry> for Complex<T> where T:Into<f64> {
-        fn into(self) -> DataEntry {
-            DataEntry::Complex((self.re.into(), self.im.into()))
-        }
+    impl<T> From<Complex<T>> for DataEntry where T:Into<f64> {
+        fn from(value: Complex<T>) -> Self {
+            DataEntry::Complex((value.re.into(), value.im.into()))
+       }
     }
-    
-    impl<T> Into<DataEntry> for Vec<T> where T:Into<DataEntry> {
-        fn into(self) -> DataEntry {
-            DataEntry::Array(self.into_iter().map(|x| x.into()).collect())
+
+    impl<T> From<Vec<T>> for DataEntry where T:Into<DataEntry> {
+        fn from(value: Vec<T>) -> Self {
+            DataEntry::Array(value.into_iter().map(|x| x.into()).collect())
         }
     }
 
     #[impl_for_tuples(5)]
+    #[allow(clippy::from_over_into)]
     impl Into<DataEntry> for Tuple {
+        #[allow(clippy::vec_init_then_push)]
         fn into(self) -> DataEntry {
             let mut res: Vec<DataEntry> = Vec::new();
             for_tuples!( #( res.push(Tuple.into()); )* );
@@ -89,7 +91,7 @@ pub mod data_collections {
 
     impl std::error::Error for DataCollectionError {}
 
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Default)]
     pub struct DataCollection {
         pub entires: DataEntries,
         indexs: HashMap<String, usize>,
@@ -105,10 +107,7 @@ pub mod data_collections {
 
     impl DataCollection {
         pub fn new() -> DataCollection {
-            DataCollection {
-                entires: DataEntries::new(),
-                indexs: HashMap::new(),
-            }
+            Self:: default()
         }
 
         pub fn add_entry<T: Into<DataEntry>>(&mut self, name: &str, entry: T) -> &mut Self {
@@ -157,7 +156,7 @@ pub mod data_collections {
                 return Err(DataCollectionError::AddEntryError(
                     format!("Name and entries length mismatch, Name.len()={}, entries.len()={}",name.len(),entries.len()).to_string()));
             }
-            for (i, entry) in entries.into_iter().enumerate() {
+            for (i, entry) in entries.iter().enumerate() {
                 self.add_entry(name[i], entry.clone());
             }
             Ok(self)
@@ -246,7 +245,7 @@ mod json_interface {
             }
         }
 
-        fn write_to_stan_json(&self, res: &mut String) {
+        pub fn write_to_stan_json(&self, res: &mut String) {
             if self.is_empty_array() {
                 res.push_str("[]"); // flat every [[[]]]-like structure to [] as documented in CmdStan website.
                 return;
@@ -350,7 +349,7 @@ mod stan_data_test {
     use crate::prelude::*;
     use std::fs::File;
     use std::io::{Write, Error};
-    use num::{complex, Complex};
+    use num::Complex;
 
     fn dump_stan_json<T:StanData>(data: &T, path: &str) -> Result<(), Error> {
         let mut output = File::create(path)?;
