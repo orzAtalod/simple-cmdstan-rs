@@ -1,150 +1,4 @@
-use std::path::{PathBuf, Path};
 use super::arg_tree::*;
-
-/*
-sample
-  Bayesian inference with Markov Chain Monte Carlo
-  Valid subarguments: num_samples, num_warmup, save_warmup, thin, adapt, algorithm, num_chains
-
-  num_samples=<int>
-    Number of sampling iterations
-    Valid values: 0 < num_samples
-    Defaults to 1000
-
-  num_warmup=<int>
-    Number of warmup iterations
-    Valid values: 0 < num_warmup
-    Defaults to 1000
-
-  save_warmup=<boolean>
-    Stream warmup samples to output?
-    Valid values: [0, 1, false, true]
-    Defaults to false
-
-  thin=<int>
-    Period between saved samples
-    Valid values: 0 < thin
-    Defaults to 1
-
-  adapt
-    Warmup Adaptation
-    Valid subarguments: engaged, gamma, delta, kappa, t0, init_buffer, term_buffer, window, save_metric
-
-    engaged=<boolean>
-      Adaptation engaged?
-      Valid values: [0, 1, false, true]
-      Defaults to true
-
-    gamma=<double>
-      Adaptation regularization scale
-      Valid values: 0 < gamma
-      Defaults to 0.05
-
-    delta=<double>
-      Adaptation target acceptance statistic
-      Valid values: 0.100000 <= delta <= 1.000000
-      Defaults to 0.8
-
-    kappa=<double>
-      Adaptation relaxation exponent
-      Valid values: 0 < kappa
-      Defaults to 0.75
-
-    t0=<double>
-      Adaptation iteration offset
-      Valid values: 0 < t0
-      Defaults to 10
-
-    init_buffer=<unsigned int>
-      Width of initial fast adaptation interval
-      Valid values: 0 < init_buffer
-      Defaults to 75
-
-    term_buffer=<unsigned int>
-      Width of final fast adaptation interval
-      Valid values: 0 < term_buffer
-      Defaults to 50
-
-    window=<unsigned int>
-      Initial width of slow adaptation interval
-      Valid values: 0 < window
-      Defaults to 25
-
-    save_metric=<boolean>
-      Save metric as JSON?
-      Valid values: [0, 1, false, true]
-      Defaults to false
-
-  algorithm=<list element>
-    Sampling algorithm
-    Valid values: hmc, fixed_param
-    Defaults to hmc
-
-    hmc
-      Hamiltonian Monte Carlo
-      Valid subarguments: engine, metric, metric_file, stepsize, stepsize_jitter
-
-      engine=<list element>
-        Engine for Hamiltonian Monte Carlo
-        Valid values: static, nuts
-        Defaults to nuts
-
-        static
-          Static integration time
-          Valid subarguments: int_time
-
-          int_time=<double>
-            Total integration time for Hamiltonian evolution, default is 2 * pi
-            Valid values: 0 < int_time
-            Defaults to 6.28319
-
-        nuts
-          The No-U-Turn Sampler
-          Valid subarguments: max_depth
-
-          max_depth=<int>
-            Maximum tree depth
-            Valid values: 0 < max_depth
-            Defaults to 10
-
-      metric=<list element>
-        Geometry of base manifold
-        Valid values: unit_e, diag_e, dense_e
-        Defaults to diag_e
-
-        unit_e
-          Euclidean manifold with unit metric
-
-        diag_e
-          Euclidean manifold with diag metric
-
-        dense_e
-          Euclidean manifold with dense metric
-
-      metric_file=<string>
-        Input file with precomputed Euclidean metric
-        Valid values: All
-        Defaults to
-
-      stepsize=<double>
-        Step size for discrete evolution
-        Valid values: 0 < stepsize
-        Defaults to 1
-
-      stepsize_jitter=<double>
-        Uniformly random jitter of the stepsize, in percent
-        Valid values: 0.000000 <= stepsize_jitter <= 1.000000
-        Defaults to 0
-
-    fixed_param
-      Fixed Parameter Sampler
-
-  num_chains=<int>
-    Number of chains
-    Valid values: 0 < num_chains
-    Defaults to 1
-*/
-
 DefArgTree!{<"Bayesian inference with Markov Chain Monte Carlo"> ArgSample => {
     <"Number of sampling iterations">num_samples: u32 = 1000,    //>0, default: 1000
     <"Number of warmup iterations">num_warmup: u32 = 1000,     //>0, default: 1000
@@ -264,17 +118,6 @@ impl ArgSample {
     }
 }
 
-/*
-    pub engaged: bool,       //default: true
-    pub gamma: f64,          //>0, default: 0.05
-    pub delta: f64,          //[0.1,1.0], default:0.8
-    pub kappa: f64,          //>0, default:0.75
-    pub t0: f64,             //>0, default:10
-    pub init_buffer: u32,    //>0, default:75
-    pub term_buffer: u32,    //>0, default:50
-    pub window: u32,         //>0, default:25
-    pub save_metric: bool,   //default: false
-*/
 impl ArgSampleAdapt {
     pub fn new() -> Self {
         Self::ARG_DEFAULT
@@ -299,24 +142,31 @@ impl ArgSampleAdapt {
 */
 impl ArgSampleAlgorithm {
     pub fn new() -> Self {
-        Self::default()
+        Self::ARG_DEFAULT
     }
 
+    /// Set self to Self::FixedParam
     pub fn set_to_fixed_param(&mut self) -> &mut Self {
         *self = Self::FixedParam;
         self
     }
 
+    /// Set self to Self::Hmc(hmc) with the given hmc parameter.
+    /// 
+    /// Use x.set_hmc(some_hmc.clone()) to avoid move.
     pub fn set_hmc(&mut self, hmc: ArgSampleHmc) -> &mut Self {
         *self = Self::Hmc(hmc);
         self
     }
 
-    pub fn set_hmc_clone(&mut self, hmc: &ArgSampleHmc) -> &mut Self {
-        *self = Self::Hmc(hmc.clone());
-        self
-    }
-
+    /// return Some(&mut hmc) if self is Hmc(hmc), else None
+    /// 
+    /// ```no_run
+    /// let mut x = ArgSampleAlgorithm::new();
+    /// x.get_mut_hmc().unwrap().set_stepsize(0.1);
+    /// let y = ArgSampleAlgorithm::Hmc(ArgSampleHmc::new().with_stepsize(0.1));
+    /// assert!(x == y);
+    /// ```
     pub fn get_mut_hmc(&mut self) -> Option<&mut ArgSampleHmc> {
         match self {
             Self::Hmc(hmc) => Some(hmc),
@@ -324,100 +174,71 @@ impl ArgSampleAlgorithm {
         }
     }
 
+    /// return Some(&hmc) if self is Hmc(hmc), else None
+    /// 
+    /// use this function to seek the hmc parameter.
     pub fn get_hmc(&self) -> Option<&ArgSampleHmc> {
         match self {
             Self::Hmc(hmc) => Some(hmc),
             _ => None,
         }
     }
+
+    /// return &hmc if self is Hmc(hmc), else panic
+    pub fn expect_hmc(&self) -> &ArgSampleHmc {
+        match self {
+            Self::Hmc(hmc) => hmc,
+            _ => panic!("Expected HMC, found {:?}", self),
+        }
+    }
 }
 
-
-/*
-    pub engine: ArgSampleEngine,
-    pub metric: ArgSampleMetric,
-    pub metric_file: PathBuf, //input file, default:""
-    pub stepsize: f64,        //>0, default:1
-    pub stepsize_jitter: f64  //[0,1], default:0
-*/
 impl ArgSampleHmc {
     pub fn new() -> Self {
-        Self::default()
+        Self::ARG_DEFAULT
     }
 
-    pub fn set_engine(&mut self, engine: ArgSampleEngine) -> &mut Self {
-        self.engine = engine;
-        self
-    }
-
-    pub fn set_engine_clone(&mut self, engine: &ArgSampleEngine) -> &mut Self {
-        self.engine = engine.clone();
-        self
-    }
-
-    pub fn set_metric(&mut self, metric: ArgSampleMetric) -> &mut Self {
-        self.metric = metric;
-        self
-    }
-
-    pub fn set_metric_clone(&mut self, metric: &ArgSampleMetric) -> &mut Self {
-        self.metric = metric.clone();
-        self
-    }
-
-    pub fn set_metric_unit_e(&mut self) -> &mut Self {
-        self.metric = ArgSampleMetric::UnitE;
-        self
-    }
-
-    pub fn set_metric_diag_e(&mut self) -> &mut Self {
-        self.metric = ArgSampleMetric::DiagE;
-        self
-    }
-
-    pub fn set_metric_dense_e(&mut self) -> &mut Self {
-        self.metric = ArgSampleMetric::DenseE;
-        self
-    }
-
-    pub fn set_metric_file(&mut self, file: ArgReadablePath) -> Result<&mut Self, ArgError> {
-        self.metric_file = file;
-        Ok(self)
-    }
-
-    pub fn set_stepsize(&mut self, stepsize: f64) -> Result<&mut Self, ArgError> {
-        if stepsize > 0.0 {
-            self.stepsize = stepsize;
-            Ok(self)
-        } else {
-            Err(ArgError::BadArgumentValue(format!("Sample: set_stepsize expected stepsize>0, found {}",stepsize).to_string()))
-        }
-    }
-
-    pub fn set_stepsize_jitter(&mut self, stepsize_jitter: f64) -> Result<&mut Self, ArgError> {
-        if (0.0..=1.0).contains(&stepsize_jitter) {
-            self.stepsize_jitter = stepsize_jitter;
-            Ok(self)
-        } else {
-            Err(ArgError::BadArgumentValue(format!("Sample: set_stepsize_jitter expected jitter in [0,1], found {}",stepsize_jitter).to_string()))
-        }
+    default_setter!{
+        <"Engine for Hamiltonian Monte Carlo">(engine: ArgSampleEngine;);
+        <"Geometry of base manifold. Use ArgSampleMetric::UnitE or something to set the exact value.">(metric: ArgSampleMetric;);
+        <"Input file with precomputed Euclidean metric">(metric_file: ArgReadablePath;);
+        <"Step size for discrete evolution">(stepsize: f64; stepsize<=0.0 => format!("Sample: set_stepsize expected stepsize>0, found {}",stepsize));
+        <"Uniformly random jitter of the stepsize, in percent">(stepsize_jitter: f64; !(0.0..=1.0).contains(&stepsize_jitter) => format!("Sample: set_stepsize_jitter expected jitter in [0,1], found {}",stepsize_jitter));
     }
 }
 
-/*
-    Static(f64),          //>0, default: 6.28319
-    Nuts(u32),            //default, >0, default: 10
-*/
 impl ArgSampleEngine {
+    /// Default: Self::Nuts(10) (The No-U-Turn Sampler with max_depth 10)
     pub fn new() -> Self {
-        Self::default()
+        Self::ARG_DEFAULT
     }
 
+    /// Return the default static engine with int_time 6.2839
+    /// 
+    /// ```no_run
+    /// let x = ArgSampleHmc::new().with_engine(ArgSampleEngine::default_static_engine()); 
+    /// let y = ArgSampleHmc::new().with_engine(ArgSampleEngine::Static(6.28319)); //or (will warning)
+    /// assert!(x == y);
+    /// ```
+    pub const fn default_static_engine() -> Self {
+        Self::Static(DEFAULT_ENGINE_STATIC_VAL)
+    }
+
+    /// Set the engine to static with default int_time 6.28319
+    /// 
+    /// Static engine: Static integration time
+    /// 
+    /// int_time: Total integration time for Hamiltonian evolution, default is 2 * pi (6.28319)
     pub fn set_static_engine(&mut self) -> &mut Self {
         *self = Self::Static(DEFAULT_ENGINE_STATIC_VAL);
         self
     }
 
+    /// Set the engine to static with given int_time
+    /// 
+    /// #Errors
+    /// 
+    /// when `int_time<=0` return BadArgumentValue error `Sample: set_static_int_time expected int_time>0, found {int_time}`
     pub fn set_static_int_time(&mut self, int_time: f64) -> Result<&mut Self, ArgError> {
         if int_time > 0.0 {
             *self = Self::Static(int_time);
@@ -427,11 +248,17 @@ impl ArgSampleEngine {
         }
     }
 
+    /// Set the engine to nuts with default max_depth 10
     pub fn set_nuts_engine(&mut self) -> &mut Self {
-        *self = Self::default();
+        *self = Self::ARG_DEFAULT;
         self
     }
 
+    /// Set the engine to nuts with given max_depth
+    /// 
+    /// #Errors
+    /// 
+    /// when `max_depth==0` return BadArgumentValue error `Sample: max_depth of set_nuts_max_depth could not be 0`
     pub fn set_nuts_max_depth(&mut self, max_depth: u32) -> Result<&mut Self, ArgError> {
         if max_depth == 0 {
             Err(ArgError::BadArgumentValue("sample: max_depth of set_nuts_max_depth could not be 0".to_string()))
@@ -441,6 +268,7 @@ impl ArgSampleEngine {
         }
     }
 
+    /// if the engine is static, return Some(int_time), else None
     pub fn get_int_time(&self) -> Option<f64> {
         match self {
             Self::Static(x) => Some(*x),
@@ -448,6 +276,7 @@ impl ArgSampleEngine {
         }
     }
 
+    /// if the engine is nuts, return Some(max_depth), else None
     pub fn get_max_depth(&self) -> Option<u32> {
         match self {
             Self::Nuts(x) => Some(*x),
@@ -456,28 +285,8 @@ impl ArgSampleEngine {
     }
 }
 
-/*    
-    UnitE,
-    DiagE,  //default
-    DenseE, 
-*/
 impl ArgSampleMetric {
     pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn set_unit_e(&mut self) -> &mut Self {
-        *self = Self::UnitE;
-        self
-    }
-
-    pub fn set_diag_e(&mut self) -> &mut Self {
-        *self = Self::DiagE;
-        self
-    }
-
-    pub fn set_dense_e(&mut self) -> &mut Self {
-        *self = Self::DenseE;
-        self
+        Self::ARG_DEFAULT
     }
 }
