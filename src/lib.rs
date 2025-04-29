@@ -2,6 +2,7 @@ mod data_entries;
 mod result_analyzer;
 mod stan_model;
 mod stan_command;
+mod arg_paths;
 
 pub trait StanData {
     fn write_as_stan_data(&self) -> String;
