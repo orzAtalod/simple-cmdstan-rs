@@ -46,11 +46,7 @@ pub mod data_entry {
     }
 
     impl DataEntry {
-        pub fn create_from<T:Into<DataEntry>>(item: T) -> DataEntry {
-            item.into()
-        }
-
-        pub fn create_from_complex(r: f64, i: f64) -> DataEntry {
+        pub fn from_complex(r: f64, i: f64) -> DataEntry {
             DataEntry::Complex((r, i))
         }
     }
@@ -144,7 +140,7 @@ pub mod data_collections {
         /// used to add a batch of entries.
         /// **Important**: it will clone the entries, so it's not suitable for big sheet.
         /// # example:
-        /// ```
+        /// ``` no_run
         /// let x = DataCollection::new();
         /// x.add_entries(&["N","y"], &[1,2]).unwrap();
         /// let y = DataEntries::new();
