@@ -80,8 +80,6 @@ pub mod prelude {
 
     // structs
     pub use crate::stan_model::std_stan_model::StdStanModel;
-    pub use crate::stan_command::stan_command_core::StanCommand;
-    pub use crate::stan_command::stan_command_core::StanCommandType;
     pub use crate::data_entries::data_entry::DataEntry;
     pub use crate::data_entries::data_entry::DataEntries;
     pub use crate::data_entries::data_collections::DataCollection;

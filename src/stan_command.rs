@@ -10,148 +10,216 @@ mod pathfinder;
 mod log_prob;
 mod laplace;
 
-pub mod stan_command_core {
-    use crate::prelude::*;
-    use std::collections::HashMap;
-    use std::process::Command;
-    use std::path::{Path,PathBuf};
+use std::process::Command;
+pub use arg_error::ArgError;
+#[allow(unused_imports)]
+pub use arg_path::{ArgPath, ArgWritablePath, ArgReadablePath};
 
-    pub enum StanCommandType {
-        Sample,
-        Optimize,
-        Other(String)
-    }
-    pub struct StanCommand<'a,T:StanModel> {
-        model: &'a T,
-        command_type: StanCommandType,
-        command_args: HashMap<String, Option<String>>,
+mod arg_error {
+    use std::{error::Error, fmt::Display};
+
+    #[derive(Debug)]
+    pub enum ArgError {
+        NotValidArgTreeType(String),
+        BadArgumentValue(String),
+        FileSystemError(std::io::Error),
     }
 
-    impl<'a,T:StanModel> StanCommand<'a,T> {
-        pub fn new<'b:'a>(model: &'b T, command: StanCommandType) -> Result<Self, StanError> {
-            if !model.check_ready() {
-                return Err(StanError::ModelIsNotReady);
+    impl Display for ArgError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Self::NotValidArgTreeType(s) => write!(f, "{s}"),
+                Self::BadArgumentValue(s) => write!(f, "{s}"),
+                Self::FileSystemError(e) => write!(f, "file system error: {e}"),
             }
-            Ok(StanCommand {
-                model,
-                command_type: command,
-                command_args: HashMap::new(),
-            })
         }
-    
-        /// add a command line argument to the command.
-        /// 
-        /// args: like "data", "output", "random", etc.
-        /// 
-        /// argv: like "file=data.json", "seed=121", etc.
-        /// 
-        pub fn add_args(&mut self, args: &str, argv: Option<&str>) -> &mut Self {
-            let args = args.trim().to_string();
-            let argv = argv.map(|s| s.trim().to_string());
-            self.command_args.insert(args, argv);
-            self
-        }
+    }
 
-        /// panic when not inited.
-        pub fn execute<R:StanResultAnalyzer>(&mut self, analyzer: R) -> Result<R::AnalyzeResult, R::Err> {
-            let mut command = Command::new(self.model.get_model_excutable());
+    impl Error for ArgError {}
+}
 
-            match self.command_type {
-                StanCommandType::Sample => command.arg("sample"),
-                StanCommandType::Optimize => command.arg("optimize"),
-                StanCommandType::Other(ref s) => command.arg(s),
-            };
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq)]
+pub enum ArgType {
+    Sample,
+    Optimize,
+    Variational,
+    Diagnose,
+    GenerateQuantities,
+    Pathfinder,
+    LogProb,
+    Laplace,
+}
 
-            command.arg("data");
-            if self.command_args.contains_key("data") {
-                if let Some(Some(data)) = self.command_args.get("data") {
-                    command.arg(data);
-                } else {
-                    return Err(StanError::BadParameter("data".to_string()).into());
-                }
-            } else {
-                command.arg(format!("file={}", self.model.get_data_path().display()));
-            }
-
-            let output_file: PathBuf;
-            command.arg("output");
-            if self.command_args.contains_key("output") {
-                if let Some(Some(output_str)) = self.command_args.get("output") {
-                    command.arg(output_str);
-                    output_file = Path::new(&output_str[5..]).to_path_buf();
-                } else {
-                    return Err(StanError::BadParameter("output".to_string()).into());
-                }
-            } else {
-                output_file = self.model.get_workspace_path().join("output.csv");
-                command.arg(format!("file={}", output_file.display()));
-            }
-
-            for (key, value) in &self.command_args {
-                if key != "data" && key != "output" {
-                    command.arg(key);
-                    if let Some(v) = value {
-                        command.arg(v);
-                    }
-                }
-            }
-
-            let out_value = command.output().map_err( StanError::CompileIOError)?;
-            if !out_value.status.success() {
-                return Err(StanError::CompileError("Stan command failed".to_string()).into());
-            }
-
-            analyzer.analyze(out_value, &output_file)
-        }
+pub trait WithDefaultArg : PartialEq+Sized {
+    const ARG_DEFAULT: Self;
+    fn is_default(&self) -> bool {
+        *self == Self::ARG_DEFAULT
     }
 }
 
-#[cfg(test)]
-mod test_command {
-    use crate::prelude::*;
-    use std::path::Path;
-    const PATHS: [&str;3] = [".conda\\Library\\bin\\cmdstan", "examples\\bernoulli\\", "bernoulli.stan"];
+pub trait ArgThrough {
+    fn arg_type(&self) -> Result<ArgType, ArgError>;
+    fn arg_through(&self, cmd: &mut Command) -> Result<(), ArgError>;
+}
+
+mod arg_path {
+    use std::path::PathBuf;
+    use std::fmt::Display;
+    use super::WithDefaultArg;
+    #[derive(Debug, Clone, PartialEq)]
+    pub enum ArgPath {
+        Borrowed(&'static str),
+        Owned(PathBuf),
+    }
+
+    impl WithDefaultArg for ArgPath {
+        const ARG_DEFAULT: Self = Self::Borrowed("");
+    }
+
+    impl Display for ArgPath {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Self::Borrowed(path) => write!(f, "{}", *path),
+                Self::Owned(path) => write!(f, "{}", path.to_string_lossy())
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, PartialEq)]
+    pub enum ArgWritablePath {
+        Borrowed(&'static str),
+        Owned(PathBuf),
+    }
+
+    impl WithDefaultArg for ArgWritablePath {
+        const ARG_DEFAULT: Self = Self::Borrowed("");
+    }
+
+    impl Display for ArgWritablePath {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Self::Borrowed(path) => write!(f, "{}", *path),
+                Self::Owned(path) => write!(f, "{}", path.to_string_lossy())
+            }
+        }
+    }
+
+
+    #[derive(Debug, Clone, PartialEq)]
+    pub enum ArgReadablePath {
+        Borrowed(&'static str),
+        Owned(PathBuf),
+    }
+
+    impl WithDefaultArg for ArgReadablePath {
+        const ARG_DEFAULT: Self = Self::Borrowed("");
+    }
+
+    impl Display for ArgReadablePath {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Self::Borrowed(path) => write!(f, "{}", *path),
+                Self::Owned(path) => write!(f, "{}", path.to_string_lossy())
+            }
+        }
+    }
+
+    impl From<&'static str> for ArgPath {
+        fn from(path: &'static str) -> Self {
+            Self::Borrowed(path)
+        }
+    }
+
+    impl From<PathBuf> for ArgPath {
+        fn from(path: PathBuf) -> Self {
+            Self::Owned(path)
+        }
+    }
+
+    impl From<ArgPath> for PathBuf {
+        fn from(path: ArgPath) -> Self {
+            match path {
+                ArgPath::Borrowed(path) => PathBuf::from(path),
+                ArgPath::Owned(path) => path,
+            }
+        }
+    }
+
+    impl From<ArgReadablePath> for PathBuf {
+        fn from(path: ArgReadablePath) -> Self {
+            match path {
+                ArgReadablePath::Borrowed(path) => PathBuf::from(path),
+                ArgReadablePath::Owned(path) => path,
+            }
+        }
+    }
     
-    #[test]
-    fn test_command_sample() {
-        stan_init(Path::new(PATHS[0])).unwrap();
-        let mut stm = StdStanModel::<DataEntries>::new(Path::new(PATHS[1]), Path::new("bernoulli.exe"));
-        stm.set_data_path("examples\\bernoulli\\bernoulli.data.json");
-        let mut cmd = StanCommand::new(&stm, StanCommandType::Sample).unwrap();
-        let res = cmd.execute(SampleResultAnalyzer {}).unwrap();
-        println!("ends with {} samples.", res.length);
-        assert!(res.length == 1000);
-        assert!(res.samples.contains_key("lp__"));
-        assert!(res.samples.contains_key("theta"));
-        assert!(!res.samples.contains_key("alpha"));
+    impl From<ArgWritablePath> for PathBuf {
+        fn from(path: ArgWritablePath) -> Self {
+            match path {
+                ArgWritablePath::Borrowed(path) => PathBuf::from(path),
+                ArgWritablePath::Owned(path) => path,
+            }
+        }
     }
 
-    #[test]
-    fn test_command_sample_with_arg() {
-        stan_init(Path::new(PATHS[0])).unwrap();
-        let mut stm = StdStanModel::<DataEntries>::new(Path::new(PATHS[1]), Path::new("bernoulli.exe"));
-        stm.set_data_path("examples\\bernoulli\\bernoulli.data.json");
-        
-        let mut cmd = StanCommand::new(&stm, StanCommandType::Sample).unwrap();
-        cmd.add_args("random", Some("seed=20060626"));
-        cmd.add_args("output", Some("file=examples\\bernoulli\\outputs\\output1.csv"));
-        let res1 = cmd.execute(SampleResultAnalyzer {}).unwrap();
-        let mut cmd = StanCommand::new(&stm, StanCommandType::Sample).unwrap();
-        cmd.add_args("output", Some("file=examples\\bernoulli\\outputs\\output2.csv"));
-        cmd.add_args("random", Some("seed=20060626"));
-        let res2 = cmd.execute(SampleResultAnalyzer {}).unwrap();
-        println!("res1.len={}, res2.len={}", res1.length, res2.length);
-        assert_eq!(res1.length, res2.length);
-    }
+    use std::io::Error;
+    impl ArgPath {
+        pub fn verify_file_readable(&self) -> Result<(), Error> {
+            match self {
+                ArgPath::Borrowed(path) => std::fs::File::open(path).map(|_|()),
+                ArgPath::Owned(path) => std::fs::File::open(path).map(|_|()),
+            }
+        }
 
-    #[test]
-    #[should_panic]
-    #[ignore = "should be tested in single-thread"]
-    fn test_panic_without_init() {
-        let mut stm = StdStanModel::<DataEntries>::new(Path::new(PATHS[1]), Path::new("bernoulli3.stan"));
-        stm.set_data_path("examples\\bernoulli\\bernoulli.data.json");
-        stm.complie().unwrap();
-        let mut cmd = StanCommand::new(&stm, StanCommandType::Sample).unwrap();
-        let _ = cmd.execute(SampleResultAnalyzer {}).unwrap();
+        pub fn into_readable(self) -> Result<ArgReadablePath, Error> {
+            self.verify_file_readable()?;
+            match self {
+                ArgPath::Borrowed(path) => Ok(ArgReadablePath::Borrowed(path)),
+                ArgPath::Owned(path) => Ok(ArgReadablePath::Owned(path)),
+            }
+        }
+
+        pub fn verify_file_writeable(&self) -> Result<(), Error> {
+            let path = match self {
+                ArgPath::Borrowed(path) => PathBuf::from(path),
+                ArgPath::Owned(path) => path.clone(),
+            };
+            if let Some(parent_path) = path.parent() {
+                std::fs::create_dir_all(parent_path)?;
+            }
+            std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true) // 避免 truncate 覆盖
+                    .open(path)
+                    .map(|_|())
+        }
+
+        pub fn into_writeable(self) -> Result<ArgWritablePath, Error> {
+            self.verify_file_writeable()?;
+            match self {
+                ArgPath::Borrowed(path) => Ok(ArgWritablePath::Borrowed(path)),
+                ArgPath::Owned(path) => Ok(ArgWritablePath::Owned(path)),
+            }
+        }
+
+        pub fn extend_default_file(&mut self, default_name: &str) -> &mut Self {
+            match self {
+                ArgPath::Borrowed(path) => {
+                    let mut path = PathBuf::from(*path);
+                    if path.extension().is_none() {
+                        path.push(default_name);
+                        *self = ArgPath::Owned(path);
+                    }
+                },
+                ArgPath::Owned(path) => {
+                    if path.extension().is_none() {
+                        path.push(default_name);
+                    }
+                },
+            }
+            self
+        }
     }
 }
