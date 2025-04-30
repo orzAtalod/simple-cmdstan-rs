@@ -1,4 +1,6 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::fs::File;
+use std::io::{prelude::*, Error};
 
 pub mod core {
     use super::*;
@@ -23,6 +25,15 @@ pub mod core {
         }
     }
 
+    impl ArgPath {
+        pub fn as_path(&self) -> &Path {
+            match self {
+                Self::Borrowed(path) => Path::new(path),
+                Self::Owned(path) => path.as_path(),
+            }
+        }
+    }
+
     #[derive(Debug, Clone, PartialEq)]
     pub enum ArgWritablePath {
         Borrowed(&'static str),
@@ -42,6 +53,14 @@ pub mod core {
         }
     }
 
+    impl ArgWritablePath {
+        pub fn as_path(&self) -> &Path {
+            match self {
+                Self::Borrowed(path) => Path::new(path),
+                Self::Owned(path) => path.as_path(),
+            }
+        }
+    }
 
     #[derive(Debug, Clone, PartialEq)]
     pub enum ArgReadablePath {
@@ -58,6 +77,15 @@ pub mod core {
             match self {
                 Self::Borrowed(path) => write!(f, "{}", *path),
                 Self::Owned(path) => write!(f, "{}", path.to_string_lossy())
+            }
+        }
+    }
+    
+    impl ArgReadablePath {
+        pub fn as_path(&self) -> &Path {
+            match self {
+                Self::Borrowed(path) => Path::new(path),
+                Self::Owned(path) => path.as_path(),
             }
         }
     }
@@ -100,11 +128,19 @@ pub mod core {
             }
         }
     }
+
+    impl From<ArgReadablePath> for ArgWritablePath {
+        fn from(path: ArgReadablePath) -> Self {
+            match path {
+                ArgReadablePath::Borrowed(path) => ArgWritablePath::Borrowed(path),
+                ArgReadablePath::Owned(path) => ArgWritablePath::Owned(path),
+            }
+        }
+    }
 }
 
 pub use core::{ArgPath, ArgWritablePath, ArgReadablePath};
 
-use std::io::Error;
 impl ArgPath {
     pub fn verify_file_readable(&self) -> Result<(), Error> {
         match self {
@@ -123,8 +159,8 @@ impl ArgPath {
 
     pub fn verify_file_writeable(&self) -> Result<(), Error> {
         let path = match self {
-            ArgPath::Borrowed(path) => PathBuf::from(path),
-            ArgPath::Owned(path) => path.clone(),
+            ArgPath::Borrowed(path) => Path::new(path),
+            ArgPath::Owned(path) => path,
         };
         if let Some(parent_path) = path.parent() {
             std::fs::create_dir_all(parent_path)?;
@@ -160,5 +196,18 @@ impl ArgPath {
             },
         }
         self
+    }
+}
+
+impl ArgWritablePath {
+    pub fn write_once(&self, text: &str) -> Result<&Self, Error> {
+        let path: &Path = match self {
+            ArgWritablePath::Borrowed(p) => Path::new(p),
+            ArgWritablePath::Owned(p) => p,
+        };
+
+        let mut file= File::create(path)?;
+        file.write_all(text.as_bytes())?;
+        Ok(self)
     }
 }

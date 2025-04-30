@@ -82,7 +82,6 @@ impl<T:ArgThrough+Default> Default for WithCommonArgs<T> {
 }
 
 mod common_arg_trees {
-    use std::path::Path;
     use super::*;
 
     mod arg_id {
@@ -128,7 +127,7 @@ mod common_arg_trees {
             fn arg_through(&self, cmd: &mut Command) -> Result<(), ArgError> {                
                 if self.file != ArgReadablePath::ARG_DEFAULT {
                     cmd.arg("data");
-                    arg_into!(self.{file} in Self >> cmd);
+                    cmd.arg(args_combine("file", self.file.as_path().as_os_str()));
                 }
                 Ok(())
             }
@@ -150,8 +149,6 @@ mod common_arg_trees {
         use super::*;
         use crate::prelude::DataEntry;
         use std::collections::hash_map::HashMap;
-        use std::fs::File;
-        use std::io::Write;
 
         #[derive(Debug, PartialEq)]
         pub enum ArgInit {
@@ -190,14 +187,9 @@ mod common_arg_trees {
                         }
                         param_init.push_str("\n}");
 
-                        let init_path: &Path = match file {
-                            ArgWritablePath::Borrowed(p) => Path::new(p),
-                            ArgWritablePath::Owned(p) => p,
-                        };
+                        file.write_once(&param_init).map_err(ArgError::FileSystemError)?;
 
-                        let mut file= File::create(init_path).map_err(ArgError::FileSystemError)?;
-                        file.write(param_init.as_bytes()).map_err( ArgError::FileSystemError)?;
-                        cmd.arg(args_combine("init", init_path.as_os_str()));
+                        cmd.arg(args_combine("init", file.as_path().as_os_str()));
                     }
                 };
                 Ok(())
