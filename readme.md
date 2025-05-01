@@ -61,6 +61,8 @@ Currently it's not smart enough to auto-complete the argument and figure out the
 ## TODO
 
 - [ ] Add a method to insert vec<vec<T\>\> into DataCollection without a large number of copies.
-- [ ] The command is based on Windows, it may needs to be modified to support Linux and Mac.
-- [ ] Add parallel
-- [ ] Add more commands (like diagnose toolset)
+- [ ] Add some QoL functions in struct WithCommonArgs.
+- [ ] Add a logic to generate default args from model.
+- [ ] Rewrite result analyzer.
+- [ ] Add a proc-macro to auto derive WithParam.
+- [ ] Add a builder of CmdStanModel.
