@@ -27,6 +27,10 @@ impl<T:ArgThrough> ArgThrough for WithCommonArgs<T> {
         self.num_threads.arg_through(cmd)?;
         Ok(())
     }
+
+    fn get_output_path(&self) -> Result<ArgPath, ArgError> {
+        self.output.get_output_path()
+    }
 }
 
 impl<T:ArgThrough> WithCommonArgs<T> {
@@ -323,6 +327,10 @@ mod common_arg_trees {
                 arg_into!(self.{file, diagnostic_file, refresh, sig_figs, profile_file, save_cmdstan_config} in Self >> cmd);
                 Ok(())
             }
+
+            fn get_output_path(&self) -> Result<ArgPath, ArgError> {
+                Ok(ArgPath::from(self.file.clone()))
+            }
         }
 
         impl ArgOutput {
@@ -331,7 +339,6 @@ mod common_arg_trees {
             }
 
             default_setter!{
-                <"Output file">(file:ArgWritablePath;);
                 <"Auxiliary output file for diagnostic information">(diagnostic_file:ArgWritablePath;);
                 <"Number of iterations between screen updates">(refresh:u32;);
                 <"The number of significant figures used for the output CSV files">
@@ -340,6 +347,24 @@ mod common_arg_trees {
                     });
                 <"File to store profiling information">(profile_file:ArgWritablePath;);
                 <"Save cmdstan config">(save_cmdstan_config:bool;);
+            }
+
+            /// set the output file
+            /// 
+            /// extends "output.csv" as the file name if no file is in the end of the path
+            pub fn set_file(&mut self, mut file: ArgWritablePath) -> &mut Self {
+                file.extend_default_file("output.csv");
+                self.file = file;
+                self
+            }
+        
+            /// set the output file
+            /// 
+            /// extends "output.csv" as the file name if no file is in the end of the path
+            pub fn with_file(mut self, mut file: ArgWritablePath) -> Self {
+                file.extend_default_file("output.csv");
+                self.file = file;
+                self
             }
         }
     }

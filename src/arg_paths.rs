@@ -132,8 +132,26 @@ pub mod core {
     impl From<ArgReadablePath> for ArgWritablePath {
         fn from(path: ArgReadablePath) -> Self {
             match path {
-                ArgReadablePath::Borrowed(path) => ArgWritablePath::Borrowed(path),
-                ArgReadablePath::Owned(path) => ArgWritablePath::Owned(path),
+                ArgReadablePath::Borrowed(path) => Self::Borrowed(path),
+                ArgReadablePath::Owned(path) => Self::Owned(path),
+            }
+        }
+    }
+
+    impl From<ArgWritablePath> for ArgPath {
+        fn from(path: ArgWritablePath) -> Self {
+            match path {
+                ArgWritablePath::Borrowed(path) => Self::Borrowed(path),
+                ArgWritablePath::Owned(path) => Self::Owned(path),
+            }
+        }
+    }
+
+    impl From<ArgReadablePath> for ArgPath {
+        fn from(path: ArgReadablePath) -> Self {
+            match path {
+                ArgReadablePath::Borrowed(path) => Self::Borrowed(path),
+                ArgReadablePath::Owned(path) => Self::Owned(path),
             }
         }
     }
@@ -175,21 +193,21 @@ impl ArgPath {
     pub fn into_writeable(self) -> Result<ArgWritablePath, Error> {
         self.verify_file_writeable()?;
         match self {
-            ArgPath::Borrowed(path) => Ok(ArgWritablePath::Borrowed(path)),
-            ArgPath::Owned(path) => Ok(ArgWritablePath::Owned(path)),
+            Self::Borrowed(path) => Ok(ArgWritablePath::Borrowed(path)),
+            Self::Owned(path) => Ok(ArgWritablePath::Owned(path)),
         }
     }
 
     pub fn extend_default_file(&mut self, default_name: &str) -> &mut Self {
         match self {
-            ArgPath::Borrowed(path) => {
+            Self::Borrowed(path) => {
                 let mut path = PathBuf::from(*path);
                 if path.extension().is_none() {
                     path.push(default_name);
-                    *self = ArgPath::Owned(path);
+                    *self = Self::Owned(path);
                 }
             },
-            ArgPath::Owned(path) => {
+            Self::Owned(path) => {
                 if path.extension().is_none() {
                     path.push(default_name);
                 }
@@ -209,5 +227,23 @@ impl ArgWritablePath {
         let mut file= File::create(path)?;
         file.write_all(text.as_bytes())?;
         Ok(self)
+    }
+
+    pub fn extend_default_file(&mut self, default_name: &str) -> &mut Self {
+        match self {
+            Self::Borrowed(path) => {
+                let mut path = PathBuf::from(*path);
+                if path.extension().is_none() {
+                    path.push(default_name);
+                    *self = Self::Owned(path);
+                }
+            },
+            Self::Owned(path) => {
+                if path.extension().is_none() {
+                    path.push(default_name);
+                }
+            },
+        }
+        self
     }
 }
