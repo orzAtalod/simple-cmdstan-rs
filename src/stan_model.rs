@@ -165,3 +165,38 @@ mod stan_model_test {
         assert!(stm.check_ready());
     }
 }
+
+mod param_error {
+    use std::fmt::{self, Display, Formatter};
+    use std::error::Error;
+    #[derive(Debug)]
+    pub enum StanParamError {
+        ParamNotFound(String),
+        ParseError(std::string::ParseError),
+    }
+
+    impl Display for StanParamError {
+        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+            match self {
+                StanParamError::ParamNotFound(s) => write!(f, "Parameter not found: {}", s),
+                StanParamError::ParseError(e) => write!(f, "Parameter parse error: {}", e),
+            }
+        }
+    }
+
+    impl Error for StanParamError  {
+        fn source(&self) -> Option<&(dyn Error + 'static)> {
+            match self {
+                StanParamError::ParamNotFound(_) => None,
+                StanParamError::ParseError(e) => Some(e),
+            }
+        }
+    }
+}
+pub use param_error::StanParamError;
+
+pub trait ParamedStanModel {
+    fn get_param_name(&self) -> Vec<String>;
+    fn get_param_value(&self, name: &str) -> Option<String>;
+    fn set_param_value(&mut self, name: &str, value: &str) -> Result<&mut Self, StanParamError>;
+}
