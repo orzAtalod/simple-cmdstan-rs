@@ -65,4 +65,3 @@ Currently it's not smart enough to auto-complete the argument and figure out the
 - [ ] Add a logic to generate default args from model.
 - [ ] Rewrite result analyzer.
 - [ ] Add a proc-macro to auto derive WithParam.
-- [ ] Add a builder of CmdStanModel.
