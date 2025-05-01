@@ -57,8 +57,8 @@ mod stan_error {
     impl std::error::Error for StanError {}    
 }
 
-pub use stan_interface::stan_init;
-mod stan_interface {
+pub use init::stan_init;
+mod init {
     use std::path::Path;
     pub const STAN_HOME_KEY: &str = "STAN_HOME_RS";
     pub fn stan_init(stan_home_path: &Path) -> Result<(), std::io::Error> {
@@ -80,7 +80,6 @@ pub mod prelude {
     pub use super::stan_init;
 
     // structs
-    pub use crate::stan_model::std_stan_model::StdStanModel;
     pub use crate::data_entries::data_entry::DataEntry;
     pub use crate::data_entries::data_entry::DataEntries;
     pub use crate::data_entries::data_collections::DataCollection;

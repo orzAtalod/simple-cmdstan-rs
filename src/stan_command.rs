@@ -96,8 +96,8 @@ pub struct StanResult<T: ArgThrough> {
 ///
 /// ```no-run
 /// let common_args = WithCommonArgs::new(ArgSample::new());
-/// common_args.data.set_file(ArgReadablePath::from("examples/bernoulli/bernoulli.data.json")).unwrap();
-/// let model_path = ArgReadablePath::from("bernoulli2.exe");
+/// common_args.data.set_file(ArgPath::from("examples/bernoulli/bernoulli.data.json")).unwrap();
+/// let model_path = ArgPath::from("bernoulli2.exe");
 /// let output = arg_into(common_args, model_path).unwrap();
 /// ```
 ///
@@ -112,7 +112,7 @@ pub struct StanResult<T: ArgThrough> {
 ///   defines the `.get_output_path()` method.
 /// - The function uses the `Command` struct to execute the model, so the model must be executable
 ///   and properly set up in your environment.
-pub fn arg_into<T:ArgThrough+Clone>(arg_tree: &T, model_path: &ArgReadablePath) -> Result<StanResult<T>, ArgError> {
+pub fn arg_into<T:ArgThrough+Clone>(arg_tree: &T, model_path: &ArgPath) -> Result<StanResult<T>, ArgError> {
     let output_path = arg_tree.get_output_path()?; // check wether the arg_tree is valid
     let mut cmd = Command::new(model_path.as_path());
     arg_tree.arg_through(&mut cmd)?;
