@@ -2,6 +2,7 @@ mod model_error {
     use std::fmt::{self, Display, Formatter};
     use std::error::Error;
     use crate::stan_command::ArgError;
+    use crate::init::STAN_HOME_KEY;
 
     #[derive(Debug)]
     pub enum ParamError {
@@ -12,8 +13,8 @@ mod model_error {
     impl Display for ParamError {
         fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
             match self {
-                ParamError::ParamNotFound(s) => write!(f, "Parameter not found: {}", s),
-                ParamError::ParseError(e) => write!(f, "Parameter parse error: {}", e),
+                ParamError::ParamNotFound(s) => write!(f, "Parameter not found: {s}"),
+                ParamError::ParseError(e) => write!(f, "Parameter parse error: {e}"),
             }
         }
     }
@@ -34,10 +35,51 @@ mod model_error {
         EnvVar(std::env::VarError)
     }
 
+    impl Display for FileError {
+        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+            match self {
+                FileError::Compilation(e) => write!(f, "complation error {e:?}"),
+                FileError::EnvVar(e) => write!(f, "cannot find {STAN_HOME_KEY} : {e}"),
+                FileError::FileSystem(e) => write!(f, "file system error: {e}")
+            }
+        }
+    }
+
+    impl Error for FileError  {
+        fn source(&self) -> Option<&(dyn Error + 'static)> {
+            match self {
+                FileError::Compilation(_) => None,
+                FileError::EnvVar(e) => Some(e),
+                FileError::FileSystem(e) => Some(e),
+            }
+        }
+    }
+
+    #[derive(Debug)]
     pub enum CmdStanError {
         Arg(ArgError),
         Param(ParamError),
         File(FileError),
+    }
+
+    impl Display for CmdStanError {
+        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+            match self {
+                Self::Arg(e) => write!(f, "{e}"),
+                Self::File(e) => write!(f, "{e}"),
+                Self::Param(e) => write!(f, "{e}"),
+            }
+        }
+    }
+
+    impl Error for CmdStanError {
+        fn source(&self) -> Option<&(dyn Error + 'static)> {
+            match self {
+                Self::Arg(e) => Some(e),
+                Self::File(e) => Some(e),
+                Self::Param(e) => Some(e),
+            }
+        }
     }
 }
 use model_error::CmdStanError;
