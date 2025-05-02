@@ -1,5 +1,5 @@
-use crate::{arg_paths::ArgReadablePath, stan_model::{CmdStanError, FileError, ParamError, WithParam}};
-use std::{io::{BufReader, BufRead}, collections::HashMap};
+use crate::{arg_paths::ArgReadablePath, stan_model::{CmdStanError, FileError, ParamError}};
+use std::{collections::HashMap, io::{BufRead, BufReader}};
 
 pub trait AsResult {
     fn new_line(&mut self);
@@ -11,9 +11,10 @@ pub fn analyze_csv<T:AsResult>(csv_file: ArgReadablePath, res: &mut T) -> Result
     let buf = BufReader::new(file);
     let mut args = Vec::new();
 
-    for (i,line) in buf.lines().enumerate() {
+    for (line_number, line) in buf.lines().enumerate() {
         let line = line.map_err(|e| CmdStanError::File(FileError::FileSystem(e)))?;
-        if line.starts_with("#") {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with("#") {
             continue;
         }
         let parts = line.split(',');
@@ -24,15 +25,15 @@ pub fn analyze_csv<T:AsResult>(csv_file: ArgReadablePath, res: &mut T) -> Result
                 args.push(arg.to_string());
             }
         } else {
+            if parts.clone().count() != args.len() {
+                return Err(CmdStanError::File(FileError::BadFileFormat(
+                    format!("Bad CSV Format: line {} has more or less columns than header", line_number+1), 
+                    csv_file.into()))
+                );
+            }
             res.new_line();
-            for (j,val) in parts.enumerate() {
-                if j >= args.len() {
-                    return Err(CmdStanError::File(FileError::BadFileFormat(
-                        format!("Bad CSV Format: line {i} has more column than header"), 
-                        csv_file.into()))
-                    );
-                }
-                res.set_value(&args[j], val).map_err(CmdStanError::Param)?;
+            for (arg,val) in args.iter().zip(parts) {
+                res.set_value(arg, val).map_err(CmdStanError::Param)?;
             }
         }
     }
@@ -40,20 +41,91 @@ pub fn analyze_csv<T:AsResult>(csv_file: ArgReadablePath, res: &mut T) -> Result
     Ok(())
 }
 
-impl<T: WithParam+Default> AsResult for Vec<T> {
-    fn new_line(&mut self) {
-        self.push(T::default());
+mod param_stream {
+    use std::ops::{Deref, DerefMut};
+    use crate::stan_model::WithParam;
+    use super::*;
+    #[derive(Debug, Default, Clone)]
+    pub struct ParamStream<T: WithParam+Default>(Vec<T>);
+
+    impl<T: WithParam+Default> Deref for ParamStream<T> {
+        type Target = Vec<T>;
+        fn deref(&self) -> &Self::Target {
+            &self.0
+        }
     }
 
-    fn set_value(&mut self, key: &str, val: &str) -> Result<(), ParamError> {
-        if let Some(item) = self.last_mut() {
-            if let Err(ParamError::ParseError(e)) = item.set_param_value(key, val) {
-                return Err(ParamError::ParseError(e));
-            }
+    impl<T: WithParam+Default> DerefMut for ParamStream<T> {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.0
         }
-        Ok(())
+    }
+
+    impl<T: WithParam+Default> From<Vec<T>> for ParamStream<T> {
+        fn from(value: Vec<T>) -> Self {
+            Self(value)
+        }
+    }
+
+    impl<T: WithParam+Default> From<ParamStream<T>> for Vec<T> {
+        fn from(value: ParamStream<T>) -> Self {
+            value.0
+        }
+    }
+
+    impl<T: WithParam+Default> IntoIterator for ParamStream<T> {
+        type Item = T;
+        type IntoIter = std::vec::IntoIter<T>;
+        fn into_iter(self) -> Self::IntoIter {
+            self.0.into_iter()
+        }
+    }
+
+    impl<'a, T: WithParam+Default> IntoIterator for &'a ParamStream<T> {
+        type Item = &'a T;
+        type IntoIter = std::slice::Iter<'a, T>;
+        fn into_iter(self) -> Self::IntoIter {
+            self.0.iter()
+        }
+    }
+
+    impl<'a, T: WithParam+Default> IntoIterator for &'a mut ParamStream<T> {
+        type Item = &'a mut T;
+        type IntoIter = std::slice::IterMut<'a, T>;
+        fn into_iter(self) -> Self::IntoIter {
+            self.0.iter_mut()
+        }
+    }
+
+    impl<T: WithParam+Default> FromIterator<T> for ParamStream<T> {
+        fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+            ParamStream(iter.into_iter().collect())
+        }
+    }
+
+    impl<T: WithParam+Default> Extend<T> for ParamStream<T> {
+        fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+            self.0.extend(iter);
+        }
+    }
+
+    impl<T: WithParam+Default> AsResult for ParamStream<T> {
+        fn new_line(&mut self) {
+            self.push(T::default());
+        }
+
+        fn set_value(&mut self, key: &str, val: &str) -> Result<(), ParamError> {
+            if let Some(item) = self.last_mut() {
+                if let Err(ParamError::ParseError(e)) = item.set_param_value(key, val) {
+                    return Err(ParamError::ParseError(e));
+                }
+            }
+            Ok(())
+        }
     }
 }
+#[allow(unused_imports)]
+pub use param_stream::ParamStream;
 
 #[derive(Debug, Clone, Default)]
 struct RawTable {
