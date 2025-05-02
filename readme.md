@@ -63,5 +63,5 @@ Currently it's not smart enough to auto-complete the argument and figure out the
 - [ ] Add a method to insert vec<vec<T\>\> into DataCollection without a large number of copies.
 - [ ] Add some QoL functions in struct WithCommonArgs.
 - [ ] Add a logic to generate default args from model.
-- [ ] Rewrite result analyzer.
+- [ ] Add some wrapping structure for result_analyzer.
 - [ ] Add a proc-macro to auto derive WithParam.
