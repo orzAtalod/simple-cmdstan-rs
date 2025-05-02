@@ -1,4 +1,4 @@
-use crate::{arg_paths::ArgReadablePath, stan_model::{CmdStanError, FileError, ParamError}};
+use crate::{arg_paths::ArgReadablePath, error::{CmdStanError, FileError, ParamError}};
 use std::{collections::HashMap, io::{BufRead, BufReader}};
 
 pub trait AsResult {

@@ -11,31 +11,8 @@ mod log_prob;
 mod laplace;
 
 use std::process::Command;
-pub use arg_error::ArgError;
+use crate::error::ArgError;
 use arg_tree::{ArgPath, ArgReadablePath};
-
-mod arg_error {
-    use std::{error::Error, fmt::Display};
-
-    #[derive(Debug)]
-    pub enum ArgError {
-        NotValidArgTreeType(String),
-        BadArgumentValue(String),
-        FileSystemError(std::io::Error),
-    }
-
-    impl Display for ArgError {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            match self {
-                Self::NotValidArgTreeType(s) => write!(f, "{s}"),
-                Self::BadArgumentValue(s) => write!(f, "{s}"),
-                Self::FileSystemError(e) => write!(f, "file system error: {e}"),
-            }
-        }
-    }
-
-    impl Error for ArgError {}
-}
 
 #[non_exhaustive]
 #[derive(Debug, Clone, PartialEq)]

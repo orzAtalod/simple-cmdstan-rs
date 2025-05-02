@@ -1,8 +1,9 @@
 use std::{ffi::{OsStr, OsString}, process::Command};
 pub const EPS: f64 = f64::EPSILON * 10.0;
 pub use paste::paste;
-pub use super::{ArgError, ArgType, WithDefaultArg, ArgThrough};
+pub use super::{ArgType, WithDefaultArg, ArgThrough};
 pub use crate::arg_paths::{ArgWritablePath, ArgReadablePath, ArgPath};
+pub use crate::error::ArgError;
 
 pub fn args_combine(name: &str, val: &OsStr) -> OsString {
     let mut res = OsString::new();

@@ -3,24 +3,10 @@ mod result_analyzer;
 mod stan_model;
 mod stan_command;
 mod arg_paths;
+mod error;
 
 pub trait StanData {
     fn write_as_stan_data(&self) -> String;
-}
-
-pub trait StanResultAnalyzer {
-    type AnalyzeResult: Sized;
-    type Err: std::error::Error + From<crate::StanError>;
-    fn analyze(&self, output: std::process::Output, out_file: &std::path::Path) -> Result<Self::AnalyzeResult, Self::Err>;
-}
-
-pub trait StanModel {
-    fn check_ready(&self) -> bool;
-    fn get_model_excutable(&self) -> std::path::PathBuf;
-    fn get_data_path(&self) -> std::path::PathBuf;
-    fn get_workspace_path(&self) -> std::path::PathBuf {
-        self.get_model_excutable().parent().unwrap().to_path_buf()
-    }
 }
 
 pub use stan_error::StanError;
@@ -72,8 +58,6 @@ mod init {
 pub mod prelude {
     // traits
     pub use super::StanData;
-    pub use super::StanResultAnalyzer;
-    pub use super::StanModel;
 
     // importants
     pub use super::StanError;

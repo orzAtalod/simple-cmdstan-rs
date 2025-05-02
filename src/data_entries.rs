@@ -70,22 +70,8 @@ pub mod data_entry {
 
 pub mod data_collections {
     use super::data_entry::*;
-    use std::{collections::HashMap, iter::from_fn, fmt::Display};
-
-    #[derive(Debug, Clone)]
-    pub enum DataCollectionError {
-        AddEntryError(String),
-    }
-
-    impl Display for DataCollectionError {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            match self {
-                DataCollectionError::AddEntryError(msg) => write!(f, "AddEntryError: {}", msg),
-            }
-        }
-    }
-
-    impl std::error::Error for DataCollectionError {}
+    use std::{collections::HashMap, iter::from_fn};
+    use crate::error::DataCollectionError;
 
     #[derive(Debug, Clone, Default)]
     pub struct DataCollection {
