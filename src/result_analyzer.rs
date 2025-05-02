@@ -2,8 +2,8 @@ use crate::{arg_paths::ArgReadablePath, stan_model::{CmdStanError, FileError, Pa
 use std::{io::{BufReader, BufRead}, collections::HashMap};
 
 pub trait AsResult {
-    fn new_line(&mut self) -> &mut Self;
-    fn set_value(&mut self, key: &str, val: &str) -> Result<&mut Self, ParamError>;
+    fn new_line(&mut self);
+    fn set_value(&mut self, key: &str, val: &str) -> Result<(), ParamError>;
 }
 
 pub fn analyze_csv<T:AsResult>(csv_file: ArgReadablePath, res: &mut T) -> Result<(), CmdStanError> {
@@ -41,16 +41,15 @@ pub fn analyze_csv<T:AsResult>(csv_file: ArgReadablePath, res: &mut T) -> Result
 }
 
 impl<T: WithParam+Default> AsResult for Vec<T> {
-    fn new_line(&mut self) -> &mut Self {
+    fn new_line(&mut self) {
         self.push(T::default());
-        self
     }
 
-    fn set_value(&mut self, key: &str, val: &str) -> Result<&mut Self, ParamError> {
+    fn set_value(&mut self, key: &str, val: &str) -> Result<(), ParamError> {
         if let Some(item) = self.last_mut() {
             let _ = item.set_param_value(key, val);
         }
-        Ok(self)
+        Ok(())
     }
 }
 
@@ -62,12 +61,11 @@ struct RawTable {
 }
 
 impl AsResult for RawTable {
-    fn new_line(&mut self) -> &mut Self {
+    fn new_line(&mut self) {
         self.values.push(vec![0.0; self.key_index+1]);
-        self
     }
 
-    fn set_value(&mut self, key: &str, val: &str) -> Result<&mut Self, ParamError> {
+    fn set_value(&mut self, key: &str, val: &str) -> Result<(), ParamError> {
         if let Some(id) = self.keys.get(key) {
             if let Some(line) = self.values.last_mut() {
                 line[*id] = val.parse::<f64>().map_err(|e| ParamError::ParseError(Box::new(e)))?;
@@ -79,7 +77,7 @@ impl AsResult for RawTable {
                 line.push(val.parse::<f64>().map_err(|e| ParamError::ParseError(Box::new(e)))?);
             }
         }
-        Ok(self)
+        Ok(())
     }
 }
 
