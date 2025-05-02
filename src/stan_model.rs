@@ -89,8 +89,7 @@ mod model_error {
         }
     }
 }
-use model_error::CmdStanError;
-pub use model_error::{ParamError, FileError};
+pub use model_error::{ParamError, FileError, CmdStanError};
 
 use crate::{arg_paths::{ArgPath, ArgReadablePath}, stan_command::{arg_into, ArgThrough, StanResult}};
 use std::path::PathBuf;

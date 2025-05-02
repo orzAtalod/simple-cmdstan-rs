@@ -83,8 +83,4 @@ pub mod prelude {
     pub use crate::data_entries::data_entry::DataEntry;
     pub use crate::data_entries::data_entry::DataEntries;
     pub use crate::data_entries::data_collections::DataCollection;
-    pub use crate::result_analyzer::ResultAnalyzerError;
-    pub use crate::result_analyzer::stan_result_analyzer::{
-        RawTable, RawTableAnalyzer, SampleResult, SampleResultAnalyzer, OptimizeResult, OptimizeResultAnalyzer
-    };
 }
