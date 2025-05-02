@@ -47,7 +47,9 @@ impl<T: WithParam+Default> AsResult for Vec<T> {
 
     fn set_value(&mut self, key: &str, val: &str) -> Result<(), ParamError> {
         if let Some(item) = self.last_mut() {
-            let _ = item.set_param_value(key, val);
+            if let Err(ParamError::ParseError(e)) = item.set_param_value(key, val) {
+                return Err(ParamError::ParseError(e));
+            }
         }
         Ok(())
     }
@@ -62,20 +64,25 @@ struct RawTable {
 
 impl AsResult for RawTable {
     fn new_line(&mut self) {
-        self.values.push(vec![0.0; self.key_index+1]);
+        self.values.push(vec![0.0; self.key_index]);
     }
 
     fn set_value(&mut self, key: &str, val: &str) -> Result<(), ParamError> {
-        if let Some(id) = self.keys.get(key) {
-            if let Some(line) = self.values.last_mut() {
-                line[*id] = val.parse::<f64>().map_err(|e| ParamError::ParseError(Box::new(e)))?;
+        let id = match self.keys.get(key) {
+            Some(id) => *id,
+            None => {
+                self.keys.insert(key.into(), self.key_index);
+                for lines in &mut self.values {
+                    lines.push(0.0);
+                }
+                self.key_index += 1;
+                self.key_index - 1
             }
-        } else {
-            self.keys.insert(key.into(), self.key_index);
-            self.key_index += 1;
-            if let Some(line) = self.values.last_mut() {
-                line.push(val.parse::<f64>().map_err(|e| ParamError::ParseError(Box::new(e)))?);
-            }
+        };
+
+        if let Some(line) = self.values.last_mut() {
+            line[id] = val.parse::<f64>()
+                          .map_err(|e| ParamError::ParseError(Box::new(e)))?;
         }
         Ok(())
     }
