@@ -1,12 +1,12 @@
-use crate::{arg_paths::ArgReadablePath, stan_model::{CmdStanError, FileError, WithParam}};
+use crate::{arg_paths::ArgReadablePath, stan_model::{CmdStanError, FileError, ParamError, WithParam}};
 use std::{io::{BufReader, BufRead}, collections::HashMap};
 
 pub trait AsResult {
     fn new_line(&mut self) -> &mut Self;
-    fn set_value(&mut self, key: &str, val: &str) -> Result<&mut Self, Box::<dyn std::error::Error>>;
+    fn set_value(&mut self, key: &str, val: &str) -> Result<&mut Self, ParamError>;
 }
 
-pub fn analyze_csv<T:AsResult>(csv_file: ArgReadablePath, res: &mut T) -> Result<(), Box::<dyn std::error::Error>> {
+pub fn analyze_csv<T:AsResult>(csv_file: ArgReadablePath, res: &mut T) -> Result<(), CmdStanError> {
     let file = std::fs::File::open(csv_file.as_path()).map_err(|e| CmdStanError::File(FileError::FileSystem(e)))?;
     let buf = BufReader::new(file);
     let mut args = Vec::new();
@@ -27,9 +27,12 @@ pub fn analyze_csv<T:AsResult>(csv_file: ArgReadablePath, res: &mut T) -> Result
             res.new_line();
             for (j,val) in parts.enumerate() {
                 if j >= args.len() {
-                    panic!("Bad CSV Format: line {} has more columns than header", i);
+                    return Err(CmdStanError::File(FileError::BadFileFormat(
+                        format!("Bad CSV Format: line {i} has more column than header"), 
+                        csv_file.into()))
+                    );
                 }
-                res.set_value(&args[j], val)?;
+                res.set_value(&args[j], val).map_err(CmdStanError::Param)?;
             }
         }
     }
@@ -43,7 +46,7 @@ impl<T: WithParam+Default> AsResult for Vec<T> {
         self
     }
 
-    fn set_value(&mut self, key: &str, val: &str) -> Result<&mut Self, Box::<dyn std::error::Error>> {
+    fn set_value(&mut self, key: &str, val: &str) -> Result<&mut Self, ParamError> {
         if let Some(item) = self.last_mut() {
             let _ = item.set_param_value(key, val);
         }
@@ -64,16 +67,16 @@ impl AsResult for RawTable {
         self
     }
 
-    fn set_value(&mut self, key: &str, val: &str) -> Result<&mut Self, Box::<dyn std::error::Error>> {
+    fn set_value(&mut self, key: &str, val: &str) -> Result<&mut Self, ParamError> {
         if let Some(id) = self.keys.get(key) {
             if let Some(line) = self.values.last_mut() {
-                line[*id] = val.parse::<f64>()?;
+                line[*id] = val.parse::<f64>().map_err(|e| ParamError::ParseError(Box::new(e)))?;
             }
         } else {
             self.keys.insert(key.into(), self.key_index);
             self.key_index += 1;
             if let Some(line) = self.values.last_mut() {
-                line.push(val.parse::<f64>()?);
+                line.push(val.parse::<f64>().map_err(|e| ParamError::ParseError(Box::new(e)))?);
             }
         }
         Ok(self)

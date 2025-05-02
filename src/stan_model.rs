@@ -11,7 +11,7 @@ mod model_error {
     #[derive(Debug)]
     pub enum ParamError {
         ParamNotFound(String),
-        ParseError(std::string::ParseError),
+        ParseError(Box<dyn Error>),
     }
 
     impl Display for ParamError {
@@ -27,7 +27,7 @@ mod model_error {
         fn source(&self) -> Option<&(dyn Error + 'static)> {
             match self {
                 ParamError::ParamNotFound(_) => None,
-                ParamError::ParseError(e) => Some(e),
+                ParamError::ParseError(e) => Some(e.as_ref()),
             }
         }
     }
@@ -38,6 +38,7 @@ mod model_error {
         Compilation(std::process::Output),
         EnvVar(std::env::VarError),
         InvalidPath(String, PathBuf),
+        BadFileFormat(String, PathBuf),
     }
 
     impl Display for FileError {
@@ -47,6 +48,7 @@ mod model_error {
                 FileError::EnvVar(e) => write!(f, "cannot find {STAN_HOME_KEY} : {e}"),
                 FileError::FileSystem(e) => write!(f, "file system error: {e}"),
                 FileError::InvalidPath(s, p) => write!(f, "invalid filename: {s} {p:?}"),
+                FileError::BadFileFormat(s, p) => write!(f, "invalid file: {s} {p:?}"),
             }
         }
     }
@@ -58,6 +60,7 @@ mod model_error {
                 FileError::EnvVar(e) => Some(e),
                 FileError::FileSystem(e) => Some(e),
                 FileError::InvalidPath(_,_) => None,
+                FileError::BadFileFormat(_,_) => None,
             }
         }
     }
