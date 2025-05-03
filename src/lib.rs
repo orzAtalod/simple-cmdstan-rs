@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(unused)]
+
 mod data_entries;
 mod result_analyzer;
 mod stan_model;
