@@ -58,6 +58,14 @@ mod init {
     }
 }
 
+use std::fs::File;
+use std::io::{Write, Error};
+pub fn dump_stan_json<T:StanData>(data: &T, path: &str) -> Result<(), Error> {
+    let mut output = File::create(path)?;
+    write!(output, "{}", data.write_as_stan_data())?;
+    Ok(())
+}
+
 pub mod prelude {
     pub use super::StanData;
 
@@ -69,4 +77,5 @@ pub mod prelude {
     pub use crate::arg_paths;
     pub use crate::stan_command;
     pub use crate::stan_command::{sample, optimize, common_arg, variational, diagnose, generate_quantities, pathfinder, log_prob, laplace};
+    pub use super::dump_stan_json;
 }

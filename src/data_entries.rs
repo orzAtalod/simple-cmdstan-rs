@@ -333,12 +333,6 @@ mod stan_data_test {
     use std::io::{Write, Error};
     use num::Complex;
 
-    fn dump_stan_json<T:StanData>(data: &T, path: &str) -> Result<(), Error> {
-        let mut output = File::create(path)?;
-        write!(output, "{}", data.write_as_stan_data())?;
-        Ok(())
-    }
-
     #[test]
     fn base_test() {
         let mut x = DataEntries::new();
