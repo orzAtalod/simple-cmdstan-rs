@@ -376,9 +376,10 @@ mod stan_data_test {
     #[test]
     fn test_complex() {
         let mut x = DataEntries::new();
-        x.add_entry("N", 2).add_entry("vec", vec![Complex::new(1,2), Complex::new(3,4)]);
+        x.add_entry("N", 2).add_entry("vec", vec![Complex::new(1,2), Complex::new(3,4)])
+            .add_entry("vec2", vec![DataEntry::from_complex(1.0,2.0), DataEntry::from_complex(3.0,4.0)]);
         dump_stan_json(&x, "D:\\experimental\\complex.json").unwrap();
-        assert_eq!(x.write_as_stan_data(),"{\n    \"N\": 2,\n    \"vec\": [[1, 2], [3, 4]]\n}");
+        assert_eq!(x.write_as_stan_data(),"{\n    \"N\": 2,\n    \"vec\": [[1, 2], [3, 4]],\n    \"vec2\": [[1, 2], [3, 4]]\n}");
     }
 
     #[test]

@@ -212,6 +212,7 @@ impl ArgSampleEngine {
     /// Return the default static engine with int_time 6.2839
     /// 
     /// ```no_run
+    /// use simple_cmdstan_rs::stan_command::sample::ArgSampleHmc;
     /// let x = ArgSampleHmc::new().with_engine(ArgSampleEngine::default_static_engine()); 
     /// let y = ArgSampleHmc::new().with_engine(ArgSampleEngine::Static(6.28319)); //or (will warning)
     /// assert!(x == y);

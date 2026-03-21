@@ -1,12 +1,12 @@
 #![allow(dead_code)]
 #![allow(unused)]
 
-mod data_entries;
-mod result_analyzer;
-mod stan_model;
-mod stan_command;
-mod arg_paths;
-mod error;
+pub mod data_entries;
+pub mod result_analyzer;
+pub mod stan_model;
+pub mod stan_command;
+pub mod arg_paths;
+pub mod error;
 
 pub trait StanData {
     fn write_as_stan_data(&self) -> String;
@@ -59,15 +59,14 @@ mod init {
 }
 
 pub mod prelude {
-    // traits
     pub use super::StanData;
 
-    // importants
     pub use super::StanError;
-    pub use super::stan_init;
 
-    // structs
     pub use crate::data_entries::data_entry::DataEntry;
     pub use crate::data_entries::data_entry::DataEntries;
     pub use crate::data_entries::data_collections::DataCollection;
+    pub use crate::arg_paths;
+    pub use crate::stan_command;
+    pub use crate::stan_command::{sample, optimize, common_arg, variational, diagnose, generate_quantities, pathfinder, log_prob, laplace};
 }

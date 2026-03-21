@@ -1,14 +1,14 @@
 #[macro_use]
 pub mod arg_tree;
-mod sample;
-mod optimize;
-mod common_arg;
-mod variational;
-mod diagnose;
-mod generate_quantities;
-mod pathfinder;
-mod log_prob;
-mod laplace;
+pub mod sample;
+pub mod optimize;
+pub mod common_arg;
+pub mod variational;
+pub mod diagnose;
+pub mod generate_quantities;
+pub mod pathfinder;
+pub mod log_prob;
+pub mod laplace;
 
 use std::process::Command;
 use crate::error::ArgError;
